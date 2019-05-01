@@ -10,9 +10,9 @@
     -->
     <property name="plugin.author" value="Grigory Rechistov"/>
     <property name="plugin.class" value="org.openstreetmap.josm.plugins.SnapNewNodes.SnapNewNodesPlugin"/>
-    <property name="plugin.description" value="TODO write me"/>
+    <property name="plugin.description" value="Snap new ways to existing ways"/>
     <property name="plugin.icon" value="images/preferences/snapnewnodes.png"/>
-    <property name="plugin.link" value="https://wiki.openstreetmap.org/wiki/JOSM/Plugins/SnapNewNodes"/>
+    <property name="plugin.link" value="https://github.com/grigory-rechistov/snapnewnodes"/>
     <property name="plugin.canloadatruntime" value="true"/>
 
     <!-- ** include targets that all plugins have in common ** -->
