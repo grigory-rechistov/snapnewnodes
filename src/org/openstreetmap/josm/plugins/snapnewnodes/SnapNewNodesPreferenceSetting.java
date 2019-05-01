@@ -38,8 +38,10 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
 
     public SnapNewNodesPreferenceSetting() {
         super("snapnewnodes", tr("Snap New Nodes"),
-                tr("A node of a way is merged to a node or segment of another way is distance between them is less than the specified threshold." +
-                   "Nodes on ways not yet loaded to the database (with negative IDs) are considered for merging"));
+                tr("A node of a way is merged to a node or segment of another way if distance between them is less than the specified threshold." +
+                   " Nodes on ways not yet loaded to the database (with negative IDs) are considered for snapping to ways already present in the database." +
+                   " Ways to be snapped to are limited to roads (highway = *), land cover (landuse=*) and similar features."
+             ));
     }
 
     @Override
@@ -47,7 +49,7 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
         final JPanel tab = gui.createPreferenceTab(this);
 
         distanceThreshold.setText(Config.getPref().get(DIST_THRESHOLD, "10"));
-        tab.add(new JLabel(tr("Distance Threshold")), GBC.std());
+        tab.add(new JLabel(tr("Distance Threshold (in meters)")), GBC.std());
         tab.add(distanceThreshold, GBC.eol().fill(GBC.HORIZONTAL).insets(5,0,0,5));
 
         tab.add(Box.createVerticalGlue(), GBC.eol().fill(GBC.VERTICAL));
