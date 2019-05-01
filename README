@@ -1,0 +1,10 @@
+README 
+======
+
+This plugin is for snapping nodes of newly added ways to ways already present
+in the database.
+
+
+Author: Grigory Rechistov
+Based on simplifyarea by Martin Zdila <m.zdila@gmail.com>
+

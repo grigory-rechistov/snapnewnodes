@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="SnapNewNodes" default="dist" basedir=".">
+    <!-- enter the SVN commit message -->
+    <property name="commit.message" value="Initial commit"/>
+    <!-- enter the *lowest* JOSM version this plugin is currently compatible with -->
+    <property name="plugin.main.version" value="14945"/>
+   	
+    <!-- Configure these properties (replace "..." accordingly).
+         See https://josm.openstreetmap.de/wiki/DevelopersGuide/DevelopingPlugins
+    -->
+    <property name="plugin.author" value="Grigory Rechistov"/>
+    <property name="plugin.class" value="org.openstreetmap.josm.plugins.SnapNewNodes.SnapNewNodesPlugin"/>
+    <property name="plugin.description" value="TODO write me"/>
+    <property name="plugin.icon" value="images/preferences/snapnewnodes.png"/>
+    <property name="plugin.link" value="https://wiki.openstreetmap.org/wiki/JOSM/Plugins/SnapNewNodes"/>
+    <property name="plugin.canloadatruntime" value="true"/>
+
+    <!-- ** include targets that all plugins have in common ** -->
+    <import file="../build-common.xml"/>                
+                
+</project>
