@@ -60,7 +60,7 @@ import org.openstreetmap.josm.tools.Utils;
 public final class SnapNewNodesAction extends JosmAction {
 
     public SnapNewNodesAction() {
-        super(tr("Snap New Nodes"), "snap", tr("Delete unnecessary nodes from an area."),
+        super(tr("Snap New Nodes"), "simplify", tr("Delete unnecessary nodes from an area."),
                 Shortcut.registerShortcut("tools:snapnewnodes", tr("Tool: {0}", tr("Snap New Nodes")), KeyEvent.VK_Z, Shortcut.CTRL_SHIFT),
                 true, "snapnewnodes", true);
     }
