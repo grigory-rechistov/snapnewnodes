@@ -215,7 +215,7 @@ public final class SnapNewNodesAction extends JosmAction {
 
     // average nearby nodes
     private static Collection<Command> averageNearbyNodes(final Collection<Way> ways, final Collection<Node> nodesAlreadyDeleted) {
-        final double mergeThreshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.MERGE_THRESHOLD, 0.2);
+        final double mergeThreshold = 0.2;
 
         final Map<Node, LatLon> coordMap = new HashMap<>();
         for (final Way way : ways) {
@@ -338,12 +338,12 @@ public final class SnapNewNodesAction extends JosmAction {
     }
 
     private static void addNodesToDelete(final Collection<Node> nodesToDelete, final Way w) {
-        final double angleThreshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.ANGLE_THRESHOLD, 10);
-        final double angleFactor = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.ANGLE_FACTOR, 1.0);
-        final double areaThreshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.AREA_THRESHOLD, 5.0);
-        final double areaFactor = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.AREA_FACTOR, 1.0);
+        final double angleThreshold = 10;
+        final double angleFactor = 1.0;
+        final double areaThreshold = 5.0;
+        final double areaFactor = 1.0;
         final double distanceThreshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 3);
-        final double distanceFactor = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.DIST_FACTOR, 3);
+        final double distanceFactor = 3;
 
         final List<Node> nodes = w.getNodes();
         final int size = nodes.size();
