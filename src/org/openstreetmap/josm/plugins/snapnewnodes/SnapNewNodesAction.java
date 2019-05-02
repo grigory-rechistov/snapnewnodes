@@ -37,8 +37,6 @@ import java.util.Set;
 
 import javax.swing.JOptionPane;
 
-import nl.jqno.equalsverifier.internal.prefabvalues.Tuple;
-
 import org.openstreetmap.josm.actions.JosmAction;
 import org.openstreetmap.josm.command.ChangeCommand;
 import org.openstreetmap.josm.command.Command;
