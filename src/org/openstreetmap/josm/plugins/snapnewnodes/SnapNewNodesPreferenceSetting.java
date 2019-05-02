@@ -39,8 +39,8 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
     public SnapNewNodesPreferenceSetting() {
         super("snapnewnodes", tr("Snap New Nodes"),
                 tr("A node of a way is merged to a node or segment of another way if distance between them is less than the specified threshold." +
-                   " Nodes on ways not yet loaded to the database (with negative IDs) are considered for snapping to ways already present in the database." +
-                   " Ways to be snapped to are limited to roads (highway = *), land cover (landuse=*) and similar features."
+                   " Ways to be snapped to are limited to roads (highway = *), land cover (landuse=*) and similar features." +
+                   " Nodes already connecting two or more ways are never moved."
              ));
     }
 

@@ -51,11 +51,13 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.OsmPrimitiveType;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.HelpAwareOptionPane;
+import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.gui.HelpAwareOptionPane.ButtonSpec;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.bugreport.DebugTextDisplay;
 import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.ImageProvider;
+import org.openstreetmap.josm.tools.Logging;
 import org.openstreetmap.josm.tools.Pair;
 import org.openstreetmap.josm.tools.Shortcut;
 import org.openstreetmap.josm.tools.Utils;
@@ -106,8 +108,8 @@ public final class SnapNewNodesAction extends JosmAction {
                 options, options[0], null);
     }
 
-    @Override
-    public void actionPerformed(final ActionEvent e) {
+    //@Override
+    public void old_actionPerformed(final ActionEvent e) { // TODO delete
         final Collection<OsmPrimitive> selection = getLayerManager().getEditDataSet().getSelected();
 
         final List<Bounds> bounds = getCurrentEditBounds();
@@ -199,26 +201,28 @@ public final class SnapNewNodesAction extends JosmAction {
         }
     }
     
-    //@Override
-    public void actionSnapPerformed(final ActionEvent e) {
+    @Override
+    public void actionPerformed(final ActionEvent e) {
+        Logging.debug("Snap Action started");
+        int totalMovedNodes = 0;
         final double threshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
         /* Post-invariants of this method:
          * No new nodes added to selection
          * No nodes belonging to more than one way are moved
          * Some nodes in selection may change coordinates
-         * New nodes may be added to snap candidates ways
-         * A node is moved at most once
+         * New nodes may be added into middle positions of snap candidates ways
+         * Every node is moved at most once
          * TODO after this method has finished, nodes with duplicate coordinates 
          * may be present.
          */
         
         final Collection<OsmPrimitive> selection = getLayerManager().getEditDataSet().getSelected();
         Collection<Way> moveWayCandidates = Utils.filteredCollection(selection, Way.class);
-        // TODO filter moveWayCandidates to include only new ways with ID==0?
 
         ArrayList<Node> movableNodes = new ArrayList<>();
         for (final Way w : moveWayCandidates) {
             Collection<Node> nodes = w.getNodes();
+            // TODO: do not iterate over the last node if it is the same as the first one
             for (Node n: nodes) {
                 boolean nodeBelongsToManyWays = nodeGluesWays(n); 
                 // TODO other conditions blocking moves: tags on a way, ID > 0 etc
@@ -227,6 +231,11 @@ public final class SnapNewNodesAction extends JosmAction {
                 }
             }
         }
+        if (movableNodes.isEmpty()) {
+            alertSelectAtLeastOneWay();
+            return;
+        }
+        Logging.debug("Working with {0} movable nodes", movableNodes.size());
         
         /* Determine ways to which snapping is possible */
         final List<String> acceptedNatural = Arrays.asList("wood", "scrub", 
@@ -254,17 +263,20 @@ public final class SnapNewNodesAction extends JosmAction {
                 candidateWays.add(w);
             }
         }
-        
-        /* Pairs (old node -> new node) */
-        //ArrayList<Pair<Node, Node>> nodeMovements = new ArrayList<>();
+       
+        Logging.debug("Working with {0} candidate ways", candidateWays.size());
         
         for (final Way cw : candidateWays) {
-            Set<Node> allRepositionedNodes = new HashSet<>();
+            Logging.debug("Snapping to candidate way id {0} ({1} nodes)", cw.getId(), cw.getNodesCount());
+            Set<Node> allRepositionedNodes = new HashSet<>(); // TODO why a set? a list would be clearer 
             for (Node n: movableNodes) { /* Try to find a place to snap n to cw */
-                if (n.getParentWays().contains(cw)) {
+                Logging.debug("Trying to snap {0}", n);
+                if (n.getParentWays().contains(cw)) { // TODO is this a cheap call?
+                    Logging.debug("Node is already on this way", n);
                     continue; /* n is already on cw */
                 }
                 if (!cw.getBBox().bounds(n.getCoor())) { // TODO is it efficient?
+                    Logging.debug("Out of bounds for current way", n);
                     continue; /* n is outside the bounding box of cw */
                 }
                 final List<Node> candidateNodes = cw.getNodes();
@@ -280,16 +292,15 @@ public final class SnapNewNodesAction extends JosmAction {
                         /* Two things will happen:
                          1. n to be moved to newCoords,
                          2. n to be inserted into cw at k+1 position */
+                        Logging.debug("Node {0} is close to the way at coords {1}", n.toString(), newCoords.toString());
+                        totalMovedNodes ++;
                         n.setCoor(newCoords);
                         allRepositionedNodes.add(n);
-                        insertionPosition = k;
-//                        Pair<Integer, Node> inp = new Pair<>(k, n);
-//                        insertionPoints.add(inp);
+                        insertionPosition = k+1;
                         break; // new home for n at cw has been found
                     }
                 }
                 /* insert new point in cw */
-                // STOPPED HERE
                 if (insertionPosition >= 0) {
                     cw.addNode(insertionPosition, n);
                 }
@@ -301,17 +312,39 @@ public final class SnapNewNodesAction extends JosmAction {
                 movableNodes.remove(ntd);
             }
         }
-        
+
         
         MainApplication.getMap().repaint();
+        
+        String infoMsg = String.format(tr("Snapped %d nodes"), totalMovedNodes);
+        new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
+        Logging.debug(infoMsg);
+        
+        // TODO add Undo/Redo buffer entries
     }
 
     /* Finds a point on line segment [b, c] that is closest to a.
      * Returns new coords and distance to it */
     private static Pair<LatLon, Double> calculateNearestPointOnSegment(final Node a,
                                                     final Node b, final Node c) {
-        // TODO write me
-        return new Pair<>(b.getCoor(), 10000.0);
+        // TODO Write a proper algorithm to find a point on the segment, not
+        // just one of the end points
+        LatLon a_p = a.getCoor();
+        LatLon b_p = b.getCoor();
+        LatLon c_p = c.getCoor();
+         
+        double dist1 = a_p.greatCircleDistance(b_p);
+        double dist2 = a_p.greatCircleDistance(c_p);
+        
+        Pair<LatLon, Double> result = null;
+        
+        if (dist1 < dist2) {
+            result = new Pair<>(b_p, dist1);
+        } else {
+            result = new Pair<>(c_p, dist2);
+        }
+        Logging.debug("measuring {0} to [{1}, {2}]: distance is {3}", a_p, b_p, c_p, result.b);
+        return result;
     }
     
     private static boolean nodeGluesWays(final Node node) {
