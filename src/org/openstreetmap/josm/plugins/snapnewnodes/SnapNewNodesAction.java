@@ -20,6 +20,7 @@ package org.openstreetmap.josm.plugins.snapnewnodes;
 import static java.lang.Math.cos;
 import static java.lang.Math.sin;
 import static java.lang.Math.toRadians;
+
 import static org.openstreetmap.josm.tools.I18n.tr;
 import static org.openstreetmap.josm.tools.I18n.trn;
 
@@ -44,17 +45,22 @@ import org.openstreetmap.josm.command.DeleteCommand;
 import org.openstreetmap.josm.command.MoveCommand;
 import org.openstreetmap.josm.command.SequenceCommand;
 import org.openstreetmap.josm.data.Bounds;
+import org.openstreetmap.josm.data.DataSource;
 import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.OsmPrimitiveType;
+import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.HelpAwareOptionPane;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.gui.HelpAwareOptionPane.ButtonSpec;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.bugreport.DebugTextDisplay;
+import org.openstreetmap.josm.gui.layer.Layer;
+import org.openstreetmap.josm.gui.layer.OsmDataLayer;
+import org.openstreetmap.josm.gui.progress.swing.PleaseWaitProgressMonitor;
 import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.ImageProvider;
 import org.openstreetmap.josm.tools.Logging;
@@ -226,6 +232,7 @@ public final class SnapNewNodesAction extends JosmAction {
             for (Node n: nodes) {
                 boolean nodeBelongsToManyWays = nodeGluesWays(n); 
                 // TODO other conditions blocking moves: tags on a way, ID > 0 etc
+                // TODO omit the last node if it is the same as the first
                 if (!nodeBelongsToManyWays) {
                     movableNodes.add(n);
                 }
@@ -266,6 +273,17 @@ public final class SnapNewNodesAction extends JosmAction {
        
         Logging.debug("Working with {0} candidate ways", candidateWays.size());
         
+        /* Begin of monitor snippet */
+        
+//        final PleaseWaitProgressMonitor monitor = new PleaseWaitProgressMonitor(tr("Merging layers"));
+//        monitor.setCancelable(false);
+//        monitor.beginTask(tr("Snapping nodes..."), candidateWays.size());
+//        monitor.worked(1); // TODO on every outermost iteration
+//        monitor.finishTask();
+//        monitor.close();
+        
+        /* end of monitor snippet */
+        
         for (final Way cw : candidateWays) {
             Logging.debug("Snapping to candidate way id {0} ({1} nodes)", cw.getId(), cw.getNodesCount());
             Set<Node> allRepositionedNodes = new HashSet<>(); // TODO why a set? a list would be clearer 
@@ -275,12 +293,20 @@ public final class SnapNewNodesAction extends JosmAction {
                     Logging.debug("Node is already on this way", n);
                     continue; /* n is already on cw */
                 }
-                if (!cw.getBBox().bounds(n.getCoor())) { // TODO is it efficient?
+                
+                /* Exclude nodes that are outside a bounding box where 
+                  snapping is at all possible. Current issues:  
+                  1. It is unknown if calculating the bbox is cheaper than just
+                     testing everything.
+                  2. bbox should be a threshold larger in all directions, 
+                     otherwise nodes do not snap to cw's nodes at extreme
+                     positions
+                 */
+                if (!cw.getBBox().bounds(n.getCoor())) {
                     Logging.debug("Out of bounds for current way", n);
                     continue; /* n is outside the bounding box of cw */
                 }
                 final List<Node> candidateNodes = cw.getNodes();
-//                Pair<Integer, Node> insertionPoints = new ArrayList<>();
                 int insertionPosition = -1;
                 for (int k = 0; k < candidateNodes.size()-1; k ++) {
                     Pair<LatLon, Double> res = calculateNearestPointOnSegment(n,
@@ -323,26 +349,47 @@ public final class SnapNewNodesAction extends JosmAction {
         // TODO add Undo/Redo buffer entries
     }
 
-    /* Finds a point on line segment [b, c] that is closest to a.
-     * Returns new coords and distance to it */
-    private static Pair<LatLon, Double> calculateNearestPointOnSegment(final Node a,
-                                                    final Node b, final Node c) {
-        // TODO Write a proper algorithm to find a point on the segment, not
-        // just one of the end points
+  
+    /** Finds a point on line segment [b, c] that is closest to a.
+     * @param a - the point
+     * @param b, @param c - ends of the segment
+     * @return pair of projection's coordinates and distance from @param a to it
+     * XXX: the algorithm for finding a projection to a line works in assumption
+     * for Cartesian coordinates and two-dimensional plane. It is not true for
+     * (lat, lon) pairs and Earth surface. As a result,
+     * the resulting point lies on a curve connecting b and c somewhat roughly
+     * inside their bounding box. */
+    private static Pair<LatLon, Double> calculateNearestPointOnSegment(
+                                                        final Node a,
+                                                        final Node b,
+                                                        final Node c) {
         LatLon a_p = a.getCoor();
         LatLon b_p = b.getCoor();
         LatLon c_p = c.getCoor();
-         
-        double dist1 = a_p.greatCircleDistance(b_p);
-        double dist2 = a_p.greatCircleDistance(c_p);
+
+        /* An arbitrarily chosen threshold for squared length of [b;c]. For best
+           results it should depend on chosen snapping threshold converted to 
+           degrees */
+        final double roundingThreshold = 1e-10;
         
-        Pair<LatLon, Double> result = null;
-        
-        if (dist1 < dist2) {
-            result = new Pair<>(b_p, dist1);
-        } else {
-            result = new Pair<>(c_p, dist2);
+        double px = c_p.lon() - b_p.lon();
+        double py = c_p.lat() - b_p.lat();
+        double squaredLength = px * px + py * py;
+        double t = 0.0;
+        if (Math.abs(squaredLength) > roundingThreshold ) { 
+            t = ((a_p.lon() - b_p.lon()) * px + (a_p.lat() - b_p.lat()) * py) 
+                    / squaredLength;
         }
+        /* Bind t to the range (0.0; 1.0) */
+        t = Math.max(t, 0.0);
+        t = Math.min(t, 1.0); 
+
+        double lon = b_p.lon() + t * px;
+        double lat = b_p.lat() + t * py;
+        LatLon proj = new LatLon(lat, lon);
+        double dist = a_p.greatCircleDistance(proj);
+        Pair<LatLon, Double> result = new Pair<>(proj, dist);
+
         Logging.debug("measuring {0} to [{1}, {2}]: distance is {3}", a_p, b_p, c_p, result.b);
         return result;
     }
