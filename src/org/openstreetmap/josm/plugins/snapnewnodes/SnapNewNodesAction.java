@@ -249,15 +249,23 @@ public final class SnapNewNodesAction extends JosmAction {
         }
         Logging.debug("Working with {0} movable nodes", movableNodes.size());
         
-        /* Determine ways to which snapping is possible */
+        /* Determine areas and linear ways to which snapping is allowed */
+        
+        /* Be careful to which natural features snapping has to be done */
         final List<String> acceptedNatural = Arrays.asList("wood", "scrub", 
                 "heath", "moor", "grassland", "fell", "water", "wetland", 
                 "beach", "coastline");
+        /* Things like nature reserves, political boundaries or e.g. military
+           use should not be allowed for snapping */
         final List<String> ignoredLanduses = Arrays.asList("military");
+        
+        /* Do not include linear waterways here, they come later */
         final List<String> acceptedWaterways = Arrays.asList("riverbank", "dock");
         
         final Collection<Way> allWays = getLayerManager().getEditDataSet().getWays();
         ArrayList<Way> candidateWays = new ArrayList<>();
+        
+        /* First pass is to select all ways to enclose areas */
         for (final Way w : allWays) {
             boolean isNatural = w.get("natural") != null
                                 && acceptedNatural.contains(w.get("natural"));
@@ -265,17 +273,28 @@ public final class SnapNewNodesAction extends JosmAction {
                                  && !ignoredLanduses.contains(w.get("landuse")); 
             boolean isWaterway = w.get("waterway") != null
                                  && acceptedWaterways.contains(w.get("waterway"));      
-            
-            /* TODO put this and other linear objects as lowest priority in a 
-               separate filtering pass */
-            boolean isHighway = w.get("highway") != null;
-            
-            boolean accepted = isNatural || isLanduse || isWaterway || isHighway;
+                       
+            boolean accepted = isNatural || isLanduse || isWaterway;
             if (accepted) {
                 candidateWays.add(w);
             }
         }
-       
+        /* The second pass is to select way used to represent linear objects.
+           Because linear ways will be the last in the candidateWays list, 
+           movable nodes will have a chance to snap to areas first */
+        /* FIXME: It is possible to include the same ways twice under these two 
+           passes. It should not cause any correctness problems at snapping 
+           because every node can be moved at most once, and won't move if it 
+           already lies on a way */
+        for (final Way w : allWays) {
+            boolean isHighway = w.get("highway") != null;
+            
+            boolean accepted = isHighway;
+            if (accepted) {
+                candidateWays.add(w);
+            }
+        }
+
         Logging.debug("Working with {0} candidate ways", candidateWays.size());
         
         /* Begin of monitor snippet */
