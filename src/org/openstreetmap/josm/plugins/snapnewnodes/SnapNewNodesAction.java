@@ -229,7 +229,7 @@ public final class SnapNewNodesAction extends JosmAction {
 
         ArrayList<Node> movableNodes = new ArrayList<>();
         for (final Way w : moveWayCandidates) {
-            Collection<Node> nodes = w.getNodes();
+            List<Node> nodes = w.getNodes();
             final boolean closed = nodes.get(0).equals(nodes.get(nodes.size() - 1));
             if (closed) {
                 nodes.remove(nodes.size() - 1);
@@ -384,7 +384,7 @@ public final class SnapNewNodesAction extends JosmAction {
         new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
         Logging.debug(infoMsg);
         
-        if (totalMovedNodes) {
+        if (totalMovedNodes > 0) {
             final SequenceCommand rootCommand = new SequenceCommand(
                 tr("Snap {0} nodes", totalMovedNodes), 
                 allCommands);
