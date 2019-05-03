@@ -342,7 +342,7 @@ public final class SnapNewNodesAction extends JosmAction {
         
         MainApplication.getMap().repaint();
         
-        String infoMsg = String.format(tr("Snapped %d nodes"), totalMovedNodes);
+        String infoMsg = tr("Snapped {0} nodes", totalMovedNodes);
         new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
         Logging.debug(infoMsg);
         
