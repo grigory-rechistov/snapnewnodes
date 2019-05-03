@@ -101,8 +101,10 @@ public final class SnapNewNodesAction extends JosmAction {
                 options, options[0], null);
     }
 
-    private void alertSelectAtLeastOneWay() {
-        HelpAwareOptionPane.showOptionDialog(MainApplication.getMainFrame(), tr("Please select at least one way to simplify."), tr("Warning"), JOptionPane.WARNING_MESSAGE, null);
+    private void alertNoMovableNodesFound() {
+        HelpAwareOptionPane.showOptionDialog(MainApplication.getMainFrame(), 
+                tr("No nodes that can be moved were present in selected ways."), 
+                tr("Warning"), JOptionPane.WARNING_MESSAGE, null);
     }
 
     private boolean confirmSimplifyManyWays(final int numWays) {
@@ -137,7 +139,6 @@ public final class SnapNewNodesAction extends JosmAction {
         }
         final Collection<Way> ways = Utils.filteredCollection(selection, Way.class);
         if (ways.isEmpty()) {
-            alertSelectAtLeastOneWay();
             return;
         } else if (ways.size() > 10) {
             if (!confirmSimplifyManyWays(ways.size())) {
@@ -224,22 +225,26 @@ public final class SnapNewNodesAction extends JosmAction {
         
         final Collection<OsmPrimitive> selection = getLayerManager().getEditDataSet().getSelected();
         Collection<Way> moveWayCandidates = Utils.filteredCollection(selection, Way.class);
+        // TODO allow snapping individual nodes, not just nodes on ways
 
         ArrayList<Node> movableNodes = new ArrayList<>();
         for (final Way w : moveWayCandidates) {
             Collection<Node> nodes = w.getNodes();
-            // TODO: do not iterate over the last node if it is the same as the first one
+            final boolean closed = nodes.get(0).equals(nodes.get(nodes.size() - 1));
+            if (closed) {
+                nodes.remove(nodes.size() - 1);
+            }
             for (Node n: nodes) {
-                boolean nodeBelongsToManyWays = nodeGluesWays(n); 
-                // TODO other conditions blocking moves: tags on a way, ID > 0 etc
                 // TODO omit the last node if it is the same as the first
-                if (!nodeBelongsToManyWays) {
+                boolean nodeBelongsToManyWays = nodeGluesWays(n); 
+                boolean tagged = n.isTagged();
+                if (!nodeBelongsToManyWays && !tagged) {
                     movableNodes.add(n);
                 }
             }
         }
         if (movableNodes.isEmpty()) {
-            alertSelectAtLeastOneWay();
+            alertNoMovableNodesFound();
             return;
         }
         Logging.debug("Working with {0} movable nodes", movableNodes.size());
@@ -284,69 +289,89 @@ public final class SnapNewNodesAction extends JosmAction {
         
         /* end of monitor snippet */
         
+        /* List of node movement commands followed by way change commands */
+        final Collection<Command> allCommands = new ArrayList<>();
+        
         for (final Way cw : candidateWays) {
             Logging.debug("Snapping to candidate way id {0} ({1} nodes)", cw.getId(), cw.getNodesCount());
-            Set<Node> allRepositionedNodes = new HashSet<>(); // TODO why a set? a list would be clearer 
+            
+            boolean nodesAdded = false;
+            List<Node>mutatedNodes = new ArrayList<>(cw.getNodes());
+            
+            List<Node> allRepositionedNodes = new ArrayList<>();
+                      
             for (Node n: movableNodes) { /* Try to find a place to snap n to cw */
                 Logging.debug("Trying to snap {0}", n);
+                  
+                /* Do not snap node to ways it is already on */
                 if (n.getParentWays().contains(cw)) { // TODO is this a cheap call?
                     Logging.debug("Node is already on this way", n);
-                    continue; /* n is already on cw */
+                    continue;
                 }
                 
                 /* Exclude nodes that are outside a bounding box where 
                   snapping is at all possible. Current issues:  
                   1. It is unknown if calculating the bbox is cheaper than just
-                     testing everything.
+                     testing everything (should be, if it is cached inside cw).
                   2. bbox should be a threshold larger in all directions, 
                      otherwise nodes do not snap to cw's nodes at extreme
-                     positions
-                 */
+                     positions */
                 if (!cw.getBBox().bounds(n.getCoor())) {
                     Logging.debug("Out of bounds for current way", n);
                     continue; /* n is outside the bounding box of cw */
                 }
-                final List<Node> candidateNodes = cw.getNodes();
                 int insertionPosition = -1;
-                for (int k = 0; k < candidateNodes.size()-1; k ++) {
+                for (int k = 0; k < mutatedNodes.size()-1; k ++) {
                     Pair<LatLon, Double> res = calculateNearestPointOnSegment(n,
-                                                    candidateNodes.get(k),
-                                                    candidateNodes.get(k+1));
+                            mutatedNodes.get(k),
+                            mutatedNodes.get(k+1));
                     LatLon newCoords = res.a; 
                     double distance = res.b;
                     if (distance < threshold) {
                         /* Two things will happen:
-                         1. n to be moved to newCoords,
-                         2. n to be inserted into cw at k+1 position */
-                        Logging.debug("Node {0} is close to the way at coords {1}", n.toString(), newCoords.toString());
+                         1. n is scheduled to be moved to newCoords,
+                         2. n is scheduled to be inserted into cw at k+1 position */
+                        Logging.debug("Node {0} moves to {1}", n.toString(), newCoords.toString());
                         totalMovedNodes ++;
-                        n.setCoor(newCoords);
+                        allCommands.add(new MoveCommand(n, newCoords));
+                        // n.setCoor(newCoords); TODO remove if the previous line is enough
                         allRepositionedNodes.add(n);
-                        insertionPosition = k+1;
+                        insertionPosition = k+1;                    
                         break; // new home for n at cw has been found
                     }
                 }
-                /* insert new point in cw */
                 if (insertionPosition >= 0) {
-                    cw.addNode(insertionPosition, n);
+                    nodesAdded = true;
+                    mutatedNodes.add(insertionPosition, n);
                 }
                 
             }
             /* All nodes that have been moved after current iteration should be
-               excluded from movableNodes to prevent further wandering */
-            for (Node ntd: allRepositionedNodes) {
-                movableNodes.remove(ntd);
+               excluded from movableNodes to prevent further attempts to snap 
+               them somewhere */
+            for (Node repNode: allRepositionedNodes) {
+                movableNodes.remove(repNode);
             }
+            if (nodesAdded) {
+                /* Create a copy of this way, add new list of nodes and 
+                   register it in a change command */
+                Way nw = new Way(cw);
+                nw.setNodes(mutatedNodes);
+                allCommands.add(new ChangeCommand(cw, nw));
+            }   
         }
 
-        
-        MainApplication.getMap().repaint();
-        
         String infoMsg = tr("Snapped {0} nodes", totalMovedNodes);
         new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
         Logging.debug(infoMsg);
         
-        // TODO add Undo/Redo buffer entries
+        if (totalMovedNodes) {
+            final SequenceCommand rootCommand = new SequenceCommand(
+                tr("Snap {0} nodes", totalMovedNodes), 
+                allCommands);
+            UndoRedoHandler.getInstance().add(rootCommand);
+            MainApplication.getMap().repaint();
+        }
     }
 
   
