@@ -68,6 +68,8 @@ public final class SnapNewNodesAction extends JosmAction {
     @Override
     public void actionPerformed(final ActionEvent e) {
         Logging.debug("Snap Action started");
+        long startTime = System.nanoTime();
+        
         int totalMovedNodes = 0;
         final double threshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
         /* Post-invariants of this method:
@@ -257,10 +259,14 @@ public final class SnapNewNodesAction extends JosmAction {
                 allCommands.add(new ChangeCommand(cw, nw));
             }
         }
+        long endTime = System.nanoTime();
 
         String infoMsg = tr("Snapped {0} nodes", totalMovedNodes);
         new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
         Logging.debug(infoMsg);
+        
+        double durationSeconds = (endTime - startTime) / 1.0e9;
+        Logging.debug("It took {0} seconds", durationSeconds);
         
         if (totalMovedNodes > 0) {
             final SequenceCommand rootCommand = new SequenceCommand(
