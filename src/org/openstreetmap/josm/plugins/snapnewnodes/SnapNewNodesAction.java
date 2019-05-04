@@ -207,16 +207,16 @@ public final class SnapNewNodesAction extends JosmAction {
             List<Node> allRepositionedNodes = new ArrayList<>();
                       
             for (Node n: movableNodes) { /* Try to find a place to snap n to cw */
-                Logging.debug("Trying to snap {0}", n);
+//                Logging.debug("Trying to snap {0}", n);
                   
                 /* Do not snap node to ways it is already on */
                 if (n.getParentWays().contains(cw)) { // TODO is this a cheap call?
-                    Logging.debug("Node is already on this way", n);
+//                    Logging.debug("Node is already on this way", n);
                     continue;
                 }
                 
                 if (!extendedBBox.bounds(n.getCoor())) {
-                    Logging.debug("Out of bounds for current way", n);
+//                    Logging.debug("Out of bounds for current way", n);
                     continue;
                 }
                 int insertionPosition = -1;
