@@ -291,7 +291,7 @@ public final class SnapNewNodesAction extends JosmAction {
         /* An arbitrarily chosen threshold for squared length of [b;c]. For best
            results it should depend on chosen snapping threshold converted to 
            degrees */
-        final double roundingThreshold = 1e-10;
+        final double roundingThreshold = 1e-14;
         
         double px = c_p.lon() - b_p.lon();
         double py = c_p.lat() - b_p.lat();
