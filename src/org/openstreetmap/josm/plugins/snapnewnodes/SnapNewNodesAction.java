@@ -35,7 +35,9 @@ import org.openstreetmap.josm.command.Command;
 import org.openstreetmap.josm.command.MoveCommand;
 import org.openstreetmap.josm.command.SequenceCommand;
 import org.openstreetmap.josm.data.UndoRedoHandler;
+import org.openstreetmap.josm.data.coor.EastNorth;
 import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.data.osm.BBox;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.OsmPrimitiveType;
@@ -118,6 +120,9 @@ public final class SnapNewNodesAction extends JosmAction {
         /* Do not include linear waterways here, they come later */
         final List<String> acceptedWaterways = Arrays.asList("riverbank", "dock");
         
+        /* Snap to islands */
+        final List<String> acceptedPlaces = Arrays.asList("islet", "island");
+        
         final Collection<Way> allWays = getLayerManager().getEditDataSet().getWays();
         ArrayList<Way> candidateWays = new ArrayList<>();
         
@@ -128,9 +133,12 @@ public final class SnapNewNodesAction extends JosmAction {
             boolean isLanduse = (w.get("landuse") != null) 
                                  && !ignoredLanduses.contains(w.get("landuse")); 
             boolean isWaterway = w.get("waterway") != null
-                                 && acceptedWaterways.contains(w.get("waterway"));      
+                                 && acceptedWaterways.contains(w.get("waterway"));
+            
+            boolean isPlace = w.get("place") != null
+                    && acceptedPlaces.contains(w.get("place"));
                        
-            boolean accepted = isNatural || isLanduse || isWaterway;
+            boolean accepted = isNatural || isLanduse || isWaterway || isPlace;
             if (accepted) {
                 candidateWays.add(w);
             }
@@ -142,14 +150,15 @@ public final class SnapNewNodesAction extends JosmAction {
            passes. It should not cause any correctness problems at snapping 
            because every node can be moved at most once, and won't move if it 
            already lies on a way */
-        for (final Way w : allWays) {
-            boolean isHighway = w.get("highway") != null;
-            
-            boolean accepted = isHighway;
-            if (accepted) {
-                candidateWays.add(w);
-            }
-        }
+        /* Disable it as it screws up highways badly */
+//        for (final Way w : allWays) {
+//            boolean isHighway = w.get("highway") != null;
+//            
+//            boolean accepted = isHighway;
+//            if (accepted) {
+//                candidateWays.add(w);
+//            }
+//        }
 
         Logging.debug("Working with {0} candidate ways", candidateWays.size());
                
@@ -158,6 +167,32 @@ public final class SnapNewNodesAction extends JosmAction {
         
         for (final Way cw : candidateWays) {
             Logging.debug("Looking for nodes to to snap to way id {0} ({1} nodes)", cw.getId(), cw.getNodesCount());
+            
+            /* Exclude nodes that are outside a bounding box where 
+            snapping is at all possible. It requires a bit wider box to
+            allow snapping of nodes lying just outside cw's limits  */
+            BBox extendedBBox = new BBox(cw.getBBox());
+            LatLon br = extendedBBox.getBottomRight();
+            LatLon tl = extendedBBox.getTopLeft();
+            
+            LatLon mp = new LatLon(br.lat(), tl.lon()); /* The third point BBox */
+            
+            double widthDegrees = Math.abs(mp.lon() - br.lon());
+            double heightDegrees = Math.abs(mp.lat() - tl.lat());
+            double widthMeters = mp.greatCircleDistance(br);
+            double heightMeters = mp.greatCircleDistance(tl); 
+            
+            
+            double delta_lat = threshold * heightDegrees / heightMeters ;
+            double delta_lon = threshold * widthDegrees / widthMeters; 
+            
+            LatLon nbr = new LatLon(br.lat() - delta_lat, br.lon() + delta_lon);
+            LatLon ntl = new LatLon(tl.lat() + delta_lat, tl.lon() - delta_lon );
+            
+            
+            extendedBBox.add(nbr);
+            extendedBBox.add(ntl);
+
             
 //            try {
 //                Logging.debug("Sleeping for one second");
@@ -180,16 +215,9 @@ public final class SnapNewNodesAction extends JosmAction {
                     continue;
                 }
                 
-                /* Exclude nodes that are outside a bounding box where 
-                  snapping is at all possible. Current issues:  
-                  1. It is unknown if calculating the bbox is cheaper than just
-                     testing everything (should be, if it is cached inside cw).
-                  2. bbox should be a threshold larger in all directions, 
-                     otherwise nodes do not snap to cw's nodes at extreme
-                     positions */
-                if (!cw.getBBox().bounds(n.getCoor())) {
+                if (!extendedBBox.bounds(n.getCoor())) {
                     Logging.debug("Out of bounds for current way", n);
-                    continue; /* n is outside the bounding box of cw */
+                    continue;
                 }
                 int insertionPosition = -1;
                 for (int k = 0; k < mutatedNodes.size()-1; k ++) {
