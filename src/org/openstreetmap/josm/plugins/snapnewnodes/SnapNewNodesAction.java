@@ -37,7 +37,6 @@ import org.openstreetmap.josm.command.Command;
 import org.openstreetmap.josm.command.MoveCommand;
 import org.openstreetmap.josm.command.SequenceCommand;
 import org.openstreetmap.josm.data.UndoRedoHandler;
-import org.openstreetmap.josm.data.coor.EastNorth;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.BBox;
 import org.openstreetmap.josm.data.osm.Node;
@@ -143,8 +142,12 @@ public final class SnapNewNodesAction extends JosmAction {
         
         /* First pass is to select all ways to enclose areas */
         for (final Way w : allWays) {
-            
-            OsmPrimitive t = null; // primitive to analyze tags from 
+            /* Make snap source ways and snap target ways mutually exclusive */
+            if (moveWayCandidates.contains(w)) {
+                continue;
+            }
+
+            OsmPrimitive t = null; // primitive to analyze tags from
 
             /* Ways that have no useful tags may be part of a multipolygon */
             if (!w.isTagged()) {
@@ -157,7 +160,7 @@ public final class SnapNewNodesAction extends JosmAction {
                     }
                 }
             } else {
-                t = w; // the way itself to be analyzed 
+                t = w; // the way itself to be analyzed
             }
             
             boolean isNatural = t.get("natural") != null
@@ -182,12 +185,15 @@ public final class SnapNewNodesAction extends JosmAction {
         /* The second pass is to select way used to represent linear objects.
            Because linear ways will be the last in the candidateWays list, 
            movable nodes will have a chance to snap to areas first */
-        /* FIXME: It is possible to include the same ways twice under these two 
+        /* It is possible to include the same ways twice under these two 
            passes. It should not cause any correctness problems at snapping 
            because every node can be moved at most once, and won't move if it 
            already lies on a way */
         /* Disable it as it screws up highways badly */
 //        for (final Way w : allWays) {
+//            if (moveWayCandidates.contains(w)) {
+//                continue;
+//            }
 //            boolean isHighway = w.get("highway") != null;
 //            
 //            boolean accepted = isHighway;
