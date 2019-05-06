@@ -70,13 +70,14 @@ public final class SnapNewNodesAction extends JosmAction {
     
     public static Comparator<Way> WayComparator = new Comparator<Way>() {
 
+        @Override
         public int compare(Way w1, Way w2) {
            Double w1l = w1.getLength();
            Double w2l = w2.getLength();
            
-           return w2l.compareTo(w1l); // TODO reverse the order?
-    }};
-
+           return w2l.compareTo(w1l);
+        }
+    };
        
     @Override
     public void actionPerformed(final ActionEvent e) {
@@ -84,7 +85,10 @@ public final class SnapNewNodesAction extends JosmAction {
         long startTime = System.nanoTime();
         
         int totalMovedNodes = 0;
-        final double threshold = Config.getPref().getDouble(SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
+        final double distThreshold = Config.getPref().getDouble(
+                            SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
+        final double clThreshold = Config.getPref().getDouble(
+                SnapNewNodesPreferenceSetting.CANDIDATE_LENGTH_THRESHOLD, 100);
         /* Post-invariants of this method:
          * No new nodes added to selection
          * No nodes belonging to more than one way are moved
@@ -148,37 +152,38 @@ public final class SnapNewNodesAction extends JosmAction {
                 continue;
             }
 
-            OsmPrimitive t = null; // primitive to analyze tags from
+            /* In order to include a way into snapping candidates, it or its parent
+               multipolygon should have tags that are interesting */
+            OsmPrimitive tagObj = w;
 
-            /* Ways that have no useful tags may be part of a multipolygon */
-            if (!w.isTagged()) {
+            if (!w.isTagged()) { /* w is not tagged, try finding at least one of
+                                    parent multipolygons */
                 List<OsmPrimitive> refs = w.getReferrers();
                 for (OsmPrimitive ref: refs) {
                     if ((ref instanceof Relation) && 
                          ref.hasTag("type", "multipolygon")) {
-                        t = ref;
+                        tagObj = ref;
                         break;
                     }
                 }
-            } else {
-                t = w; // the way itself to be analyzed
             }
             
-            boolean isNatural = t.get("natural") != null
-                                && acceptedNatural.contains(t.get("natural"));
-            boolean isLanduse = (t.get("landuse") != null) 
-                                 && !ignoredLanduses.contains(t.get("landuse")); 
-            boolean isWaterway = t.get("waterway") != null
-                                 && acceptedWaterways.contains(t.get("waterway"));
+            boolean isNatural = tagObj.get("natural") != null
+                                && acceptedNatural.contains(tagObj.get("natural"));
+            boolean isLanduse = (tagObj.get("landuse") != null) 
+                                 && !ignoredLanduses.contains(tagObj.get("landuse")); 
+            boolean isWaterway = tagObj.get("waterway") != null
+                                 && acceptedWaterways.contains(tagObj.get("waterway"));
 
-            boolean isPlace = t.get("place") != null
-                    && acceptedPlaces.contains(t.get("place"));
+            boolean isPlace = tagObj.get("place") != null
+                    && acceptedPlaces.contains(tagObj.get("place"));
 
-            /* TODO exclude out short ways from the process? */
-//            double length = w.getLength();
-//            boolean isTooShort = length < lengthThreshold;
+            /* Exclude out short ways from the process */
+            final double length = w.getLength();
+            boolean isTooShort = length < clThreshold;
             
-            boolean accepted = isNatural || isLanduse || isWaterway || isPlace;
+            boolean accepted = !isTooShort &&
+                    (isNatural || isLanduse || isWaterway || isPlace);
             if (accepted) {
                 candidateWays.add(w);
             }
@@ -229,8 +234,8 @@ public final class SnapNewNodesAction extends JosmAction {
             double widthMeters = mp.greatCircleDistance(br);
             double heightMeters = mp.greatCircleDistance(tl); 
             
-            double delta_lat = threshold * heightDegrees / heightMeters ;
-            double delta_lon = threshold * widthDegrees / widthMeters; 
+            double delta_lat = distThreshold * heightDegrees / heightMeters ;
+            double delta_lon = distThreshold * widthDegrees / widthMeters; 
             
             LatLon nbr = new LatLon(br.lat() - delta_lat, br.lon() + delta_lon);
             LatLon ntl = new LatLon(tl.lat() + delta_lat, tl.lon() - delta_lon );
@@ -273,7 +278,7 @@ public final class SnapNewNodesAction extends JosmAction {
                             mutatedNodes.get(k+1));
                     LatLon newCoords = res.a; 
                     double distance = res.b;
-                    if (distance < threshold) {
+                    if (distance < distThreshold) {
                         /* Two things happen:
                          1. n is scheduled to be moved to newCoords,
                          2. n is scheduled to be inserted into cw at k+1 position */
