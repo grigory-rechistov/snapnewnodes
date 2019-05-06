@@ -39,6 +39,7 @@ import org.openstreetmap.josm.command.SequenceCommand;
 import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.BBox;
+import org.openstreetmap.josm.data.osm.DefaultNameFormatter;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.OsmPrimitiveType;
@@ -169,10 +170,10 @@ public final class SnapNewNodesAction extends JosmAction {
                                  && !ignoredLanduses.contains(t.get("landuse")); 
             boolean isWaterway = t.get("waterway") != null
                                  && acceptedWaterways.contains(t.get("waterway"));
-            
+
             boolean isPlace = t.get("place") != null
                     && acceptedPlaces.contains(t.get("place"));
-                       
+
             /* TODO exclude out short ways from the process? */
 //            double length = w.getLength();
 //            boolean isTooShort = length < lengthThreshold;
@@ -212,7 +213,7 @@ public final class SnapNewNodesAction extends JosmAction {
         final Collection<Command> allCommands = new ArrayList<>();
         
         for (final Way cw : candidateWays) {
-            Logging.debug("Looking for nodes to to snap to way id {0} ({1} nodes)", cw.getId(), cw.getNodesCount());
+            Logging.debug("Looking for nodes to to snap to way {0}", cw.getDisplayName(DefaultNameFormatter.getInstance()));
             
             /* Exclude nodes that are outside a bounding box where 
             snapping is at all possible. It requires a bit wider box to
