@@ -24,6 +24,8 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -41,6 +43,7 @@ import org.openstreetmap.josm.data.osm.BBox;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.OsmPrimitiveType;
+import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.HelpAwareOptionPane;
 import org.openstreetmap.josm.gui.Notification;
@@ -64,6 +67,16 @@ public final class SnapNewNodesAction extends JosmAction {
                 tr("No nodes that can be moved were present in selected ways."), 
                 tr("Warning"), JOptionPane.WARNING_MESSAGE, null);
     }
+    
+    public static Comparator<Way> WayComparator = new Comparator<Way>() {
+
+        public int compare(Way w1, Way w2) {
+           Double w1l = w1.getLength();
+           Double w2l = w2.getLength();
+           
+           return w2l.compareTo(w1l); // TODO reverse the order?
+    }};
+
        
     @Override
     public void actionPerformed(final ActionEvent e) {
@@ -130,16 +143,37 @@ public final class SnapNewNodesAction extends JosmAction {
         
         /* First pass is to select all ways to enclose areas */
         for (final Way w : allWays) {
-            boolean isNatural = w.get("natural") != null
-                                && acceptedNatural.contains(w.get("natural"));
-            boolean isLanduse = (w.get("landuse") != null) 
-                                 && !ignoredLanduses.contains(w.get("landuse")); 
-            boolean isWaterway = w.get("waterway") != null
-                                 && acceptedWaterways.contains(w.get("waterway"));
             
-            boolean isPlace = w.get("place") != null
-                    && acceptedPlaces.contains(w.get("place"));
+            OsmPrimitive t = null; // primitive to analyze tags from 
+
+            /* Ways that have no useful tags may be part of a multipolygon */
+            if (!w.isTagged()) {
+                List<OsmPrimitive> refs = w.getReferrers();
+                for (OsmPrimitive ref: refs) {
+                    if ((ref instanceof Relation) && 
+                         ref.hasTag("type", "multipolygon")) {
+                        t = ref;
+                        break;
+                    }
+                }
+            } else {
+                t = w; // the way itself to be analyzed 
+            }
+            
+            boolean isNatural = t.get("natural") != null
+                                && acceptedNatural.contains(t.get("natural"));
+            boolean isLanduse = (t.get("landuse") != null) 
+                                 && !ignoredLanduses.contains(t.get("landuse")); 
+            boolean isWaterway = t.get("waterway") != null
+                                 && acceptedWaterways.contains(t.get("waterway"));
+            
+            boolean isPlace = t.get("place") != null
+                    && acceptedPlaces.contains(t.get("place"));
                        
+            /* TODO exclude out short ways from the process? */
+//            double length = w.getLength();
+//            boolean isTooShort = length < lengthThreshold;
+            
             boolean accepted = isNatural || isLanduse || isWaterway || isPlace;
             if (accepted) {
                 candidateWays.add(w);
@@ -162,7 +196,11 @@ public final class SnapNewNodesAction extends JosmAction {
 //            }
 //        }
 
+        /* Start from the longest ways to attempt snapping to them first */
+        Collections.sort(candidateWays, WayComparator);
+        
         Logging.debug("Working with {0} candidate ways", candidateWays.size());
+        
                
         /* List of node movement commands followed by way change commands */
         final Collection<Command> allCommands = new ArrayList<>();
@@ -184,13 +222,11 @@ public final class SnapNewNodesAction extends JosmAction {
             double widthMeters = mp.greatCircleDistance(br);
             double heightMeters = mp.greatCircleDistance(tl); 
             
-            
             double delta_lat = threshold * heightDegrees / heightMeters ;
             double delta_lon = threshold * widthDegrees / widthMeters; 
             
             LatLon nbr = new LatLon(br.lat() - delta_lat, br.lon() + delta_lon);
             LatLon ntl = new LatLon(tl.lat() + delta_lat, tl.lon() - delta_lon );
-            
             
             extendedBBox.add(nbr);
             extendedBBox.add(ntl);
@@ -203,7 +239,9 @@ public final class SnapNewNodesAction extends JosmAction {
 //                ;
 //            }
             
+            // becomes true whenever at least one new node is included into cw
             boolean nodesAdded = false;
+            // a copy that will be modified with newly inserted nodes
             List<Node>mutatedNodes = new ArrayList<>(cw.getNodes());
             
             List<Node> allRepositionedNodes = new ArrayList<>();
