@@ -33,13 +33,15 @@ import org.openstreetmap.josm.tools.GBC;
 public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
 
     static final String DIST_THRESHOLD = "snap-new-nodes.dist.threshold";
+    static final String CANDIDATE_LENGTH_THRESHOLD = "snap-new-nodes.candidate.threshold";
 
     private final JTextField distanceThreshold = new JosmTextField(8);
+    private final JTextField candidateLengthThreshold = new JosmTextField(8);
 
     public SnapNewNodesPreferenceSetting() {
         super("snapnewnodes", tr("Snap New Nodes"),
                 tr("A node of a way is merged to a node or segment of another way if distance between them is less than the specified threshold." +
-                   " Ways to be snapped to are limited to roads (highway = *), land cover (landuse=*) and similar features." +
+                   " Ways to be snapped to are limited to land cover (landuse=*) and similar features." +
                    " Nodes already connecting two or more ways are never moved."
              ));
     }
@@ -51,6 +53,10 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
         distanceThreshold.setText(Config.getPref().get(DIST_THRESHOLD, "10"));
         tab.add(new JLabel(tr("Distance Threshold (in meters)")), GBC.std());
         tab.add(distanceThreshold, GBC.eol().fill(GBC.HORIZONTAL).insets(5,0,0,5));
+        
+        candidateLengthThreshold.setText(Config.getPref().get(CANDIDATE_LENGTH_THRESHOLD, "100"));
+        tab.add(new JLabel(tr("Minimum way length to be eligible for snapping (in meters)")), GBC.std());
+        tab.add(candidateLengthThreshold, GBC.eol().fill(GBC.HORIZONTAL).insets(5,0,0,5));
 
         tab.add(Box.createVerticalGlue(), GBC.eol().fill(GBC.VERTICAL));
     }
@@ -58,6 +64,7 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
     @Override
     public boolean ok() {
         Config.getPref().put(DIST_THRESHOLD, distanceThreshold.getText());
+        Config.getPref().put(CANDIDATE_LENGTH_THRESHOLD, candidateLengthThreshold.getText());
         return false;
     }
 }
