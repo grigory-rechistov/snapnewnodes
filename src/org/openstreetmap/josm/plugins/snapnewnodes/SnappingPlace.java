@@ -6,16 +6,14 @@ import org.openstreetmap.josm.data.coor.LatLon;
 /** A tuple of values describing where two ways have intersected
  */
 public class SnappingPlace {
-    public int srcIndex; // index of node in the source way
     public LatLon projectionCoord; // where the source node would snap to
     public double distance; // in meters between source node and its projection
     public int dstIndex;  // index of node on target way
-    
-    public SnappingPlace(int mv, LatLon pc, double d, int ti) {
-        this.srcIndex = mv;
+
+    public SnappingPlace(LatLon pc, double d, int ti) {
         this.projectionCoord = pc;
         this.distance = d;
         this.dstIndex = ti;
     }
-    
+
 }

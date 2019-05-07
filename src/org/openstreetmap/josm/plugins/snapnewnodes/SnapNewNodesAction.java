@@ -127,9 +127,9 @@ public final class SnapNewNodesAction extends JosmAction {
                 SnappingPlace sp = null;
 
                 if (n.getParentWays().contains(dstWay)) {
-                    sp = new SnappingPlace(i, null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
+                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
                 } else {
-                    sp = calculateNearestPointOnWay(i, n, dstWay);
+                    sp = calculateNearestPointOnWay(n, dstWay);
                 }
 
                 if (curPair.srcStart < 0 && sp.distance < distThreshold) {
@@ -140,7 +140,7 @@ public final class SnapNewNodesAction extends JosmAction {
                 } else if (curPair.srcStart >= 0 && sp.distance > distThreshold) {
                     /* was tracking, stop tracking, record the replacement pair */
                     assert i > 0;
-                    curPair.srcEnd = i-1;
+                    curPair.srcEnd = i;
                     curPair.dstEnd = sp.dstIndex;
                     curPair.dstN = sp.projectionCoord;
                     replPairs.add(new ReplacementPairs(curPair));
@@ -178,7 +178,19 @@ public final class SnapNewNodesAction extends JosmAction {
                         allCommands.add(spcmd);
                         newSrcNodes.add(startProj);
 
-                        List<Node> dstSegment = dstWay.getNodes().subList(curP.dstStart, curP.dstEnd); // TODO check off by one error in indexes
+                        /* Extract a segment from dstWay with correct order of nodes */
+                        List<Node> dstSegment = null;
+                        int dstStart = curP.dstStart;
+                        int dstEnd = curP.dstEnd;
+
+                        if (dstStart < dstEnd) {
+                            dstSegment = dstWay.getNodes().subList(dstStart, dstEnd); // TODO check off by one error in indexes
+                        } else {
+                            /* Reverse order of nodes */
+                            dstSegment = dstWay.getNodes().subList(dstEnd, dstStart);
+                            Collections.reverse(dstSegment);
+                        }
+
 
                         newSrcNodes.addAll(dstSegment);
 
@@ -187,7 +199,7 @@ public final class SnapNewNodesAction extends JosmAction {
                         allCommands.add(epcmd);
                         newSrcNodes.add(endProj);
                         curPairIndex ++; // now track the next segment pair
-                        i = curP.srcEnd + 1; // skip all old nodes of the segment
+                        i = curP.srcEnd; // skip all old nodes of the segment
                     } else { // preserve the original node
                         newSrcNodes.add(srcWay.getNode(i));
                         i ++;
@@ -490,13 +502,11 @@ public final class SnapNewNodesAction extends JosmAction {
     }
 
     /** Find a closest point on a way to n
-     * @param nodeIndex - index of n in source way
      * @param n - the node to find a projection of
      * @param w - way to snap to
      * @return {@link SnappingPlace} for that node
      */
-    private static SnappingPlace calculateNearestPointOnWay(
-                int nodeIndex, final Node n, final Way w) {
+    private static SnappingPlace calculateNearestPointOnWay(final Node n, final Way w) {
         int insPos = -1;
         double minDistance = Double.POSITIVE_INFINITY;
         LatLon newCoords = null;
@@ -514,7 +524,7 @@ public final class SnapNewNodesAction extends JosmAction {
                 newCoords = res.a;
             }
         }
-        return new SnappingPlace(nodeIndex, newCoords, minDistance, insPos);
+        return new SnappingPlace(newCoords, minDistance, insPos);
     }
 
 
