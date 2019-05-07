@@ -34,10 +34,13 @@ import java.util.stream.Collectors;
 
 import javax.swing.JOptionPane;
 
+import org.openstreetmap.josm.actions.DeleteAction;
 import org.openstreetmap.josm.actions.JosmAction;
 import org.openstreetmap.josm.command.AddCommand;
 import org.openstreetmap.josm.command.ChangeCommand;
+import org.openstreetmap.josm.command.ChangeNodesCommand;
 import org.openstreetmap.josm.command.Command;
+import org.openstreetmap.josm.command.DeleteCommand;
 import org.openstreetmap.josm.command.MoveCommand;
 import org.openstreetmap.josm.command.SequenceCommand;
 import org.openstreetmap.josm.data.UndoRedoHandler;
@@ -205,9 +208,8 @@ public final class SnapNewNodesAction extends JosmAction {
                         i ++;
                     }
                 }
-                Way nw = new Way(srcWay);
-                nw.setNodes(newSrcNodes);
-                allCommands.add(new ChangeCommand(srcWay, nw));
+
+                allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes));
                 /* TODO form a command to change dstWay as well */
 
                 final SequenceCommand rootCommand = new SequenceCommand(
