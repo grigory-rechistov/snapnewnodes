@@ -209,7 +209,7 @@ public final class SnapNewNodesAction extends JosmAction {
 
                         assert dstStart != dstEnd; // an empty segment could not be included
 
-                        if (dstStart < dstEnd) {
+                        if (dstStart <= dstEnd) {
                             Logging.debug(tr("slice nodes {0}  {1}", dstStart, dstEnd));
                             dstSegment = dstWay.getNodes().subList(dstStart, dstEnd); // TODO check off by one error in indexes
 
