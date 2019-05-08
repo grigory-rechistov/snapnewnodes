@@ -132,39 +132,43 @@ public final class SnapNewNodesAction extends JosmAction {
                 Node n = srcWay.getNode(i);
                 SnappingPlace sp = null;
 
-                if (n.getParentWays().contains(dstWay)) {
-                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
-                } else {
-                    sp = calculateNearestPointOnWay(n, dstWay);
-                }
+//                if (n.getParentWays().contains(dstWay)) {
+//                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
+//                } else {
+                sp = calculateNearestPointOnWay(n, dstWay);
+                assert sp.dstIndex >= 0;
+//                }
 
-                if (curPair.srcStart < 0 && sp.distance < distThreshold) {
+                if (curPair.srcStart < 0 && sp.distance <= distThreshold) {
                     /* not tracking before, start tracking now */
                     curPair.srcStart = i;
                     curPair.srcN = sp.projectionCoord;
                     curPair.dstStart = sp.dstIndex;
-                } else if (curPair.srcStart >= 0          /* was tracking, stop tracking, because */
-                        && (sp.distance > distThreshold)) /* next node is too far away */
-                {
+
+                    curPair.srcEnd = curPair.srcStart;
+                    curPair.dstEnd = curPair.dstStart;
+                    curPair.dstN = curPair.srcN;
+
+                } else if (curPair.srcStart >= 0 && (sp.distance > distThreshold))
+                {   /* was tracking, stop tracking, because next node is too far away */
                     /* Record the source and replacement segments */
                     assert i > 0; // cannot be for the very first node
+                    assert curPair.srcStart >=0;
+                    assert curPair.dstStart >=0;
+                    assert curPair.dstEnd >=0;
+                    assert curPair.srcEnd >= 0;
+                    replPairs.add(new ReplacementPairs(curPair));
+                    totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
+                    curPair.reset();
+                } else  if (curPair.srcStart >= 0 && sp.distance <= distThreshold) {
+                    /* continue tracking, record the last known snapped node */
                     curPair.srcEnd = i;
                     curPair.dstEnd = sp.dstIndex;
                     curPair.dstN = sp.projectionCoord;
-                    replPairs.add(new ReplacementPairs(curPair));
-                    totalMovedNodes += curPair.srcEnd - curPair.srcStart;
-                    curPair.reset();
-                } /* Otherwise continue either tracking outside of snapping
-                     range or inside the range */
+                } /* Otherwise continue tracking outside of snapping threshold */
             }
 
-            // TODO merge this with the loop body above ?
             if (curPair.srcStart >= 0 ) { /* we are still tracking, close it at the last node */
-                Node lastNode = srcWay.getNode(srcWaySize-1);
-                SnappingPlace sp = calculateNearestPointOnWay(lastNode, dstWay);
-                curPair.srcEnd = srcWaySize-1;
-                curPair.dstEnd = sp.dstIndex;
-                curPair.dstN = sp.projectionCoord;
                 replPairs.add(new ReplacementPairs(curPair));
                 totalMovedNodes += curPair.srcEnd - curPair.srcStart;
             }
@@ -175,7 +179,9 @@ public final class SnapNewNodesAction extends JosmAction {
 
             if (replPairs.size() > 0) {
                 /* add a fake stub end item to allow copying of the tail */
-                replPairs.add(new ReplacementPairs());
+                ReplacementPairs terminatorEntry = new ReplacementPairs();
+                terminatorEntry.srcStart = srcWaySize + 1; // outside of boundaries to never be reached
+                replPairs.add(terminatorEntry);
 
                 /* List of dataset modification commands to be formed */
                 final Collection<Command> allCommands = new ArrayList<>();
@@ -188,9 +194,8 @@ public final class SnapNewNodesAction extends JosmAction {
                 while (i < srcWaySize) {
                     ReplacementPairs curP = replPairs.get(curPairIndex);
 
-                    /* There should be no way to enter deep into a replaced
-                     * segment or consider the last dummy item */
-                    assert (i <= curP.srcStart) || (curP.srcStart == -1);
+                    /* There should be no way to enter deep into a replaced segment */
+                    assert i <= curP.srcStart;
 
                     if (i == curP.srcStart) {
                         /* It has reached the replacement segment start.
@@ -207,11 +212,9 @@ public final class SnapNewNodesAction extends JosmAction {
                         int dstStart = curP.dstStart;
                         int dstEnd = curP.dstEnd;
 
-                        assert dstStart != dstEnd; // an empty segment could not be included
-
                         if (dstStart <= dstEnd) {
                             Logging.debug(tr("slice nodes {0}  {1}", dstStart, dstEnd));
-                            dstSegment = dstWay.getNodes().subList(dstStart, dstEnd); // TODO check off by one error in indexes
+                            dstSegment = dstWay.getNodes().subList(dstStart, dstEnd);
 
                         } else {
                             /* Reverse order of nodes */
@@ -220,13 +223,16 @@ public final class SnapNewNodesAction extends JosmAction {
                             Collections.reverse(dstSegment);
                         }
 
+                        if (!dstSegment.isEmpty()) {
+                            newSrcNodes.addAll(dstSegment);
+                        }
 
-                        newSrcNodes.addAll(dstSegment);
-
-                        Node endProj = new Node(curP.dstN);
-                        AddCommand epcmd = new AddCommand(ds, endProj);
-                        allCommands.add(epcmd);
-                        newSrcNodes.add(endProj);
+                        if (true /* TODO add condition for empty segments */) {
+                            Node endProj = new Node(curP.dstN);
+                            AddCommand epcmd = new AddCommand(ds, endProj);
+                            allCommands.add(epcmd);
+                            newSrcNodes.add(endProj);
+                        }
                         curPairIndex ++; // now track the next segment pair
                         i = curP.srcEnd; // skip all old nodes of the segment
                     } else { // preserve the original node
@@ -235,9 +241,10 @@ public final class SnapNewNodesAction extends JosmAction {
                     }
                 }
 
-//                if (srcWayIsClosed) {
-//                    newSrcNodes.set(newSrcNodes.size()-1, arg1)
-//                }
+                if (srcWayIsClosed) { /* Close the new way */
+                    Node firstNode = newSrcNodes.get(0);
+                    newSrcNodes.set(newSrcNodes.size()-1, firstNode);
+                }
 
                 allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes));
                 /* TODO form a command to change dstWay as well */
