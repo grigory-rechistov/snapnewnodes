@@ -171,7 +171,8 @@ public final class SnapNewNodesAction extends JosmAction {
                     if (curPair.direction != 0 && curPair.direction != newDirection) {
                         /* This means that projection point jump to
                          * another branch of dstWay */
-                        // TODO handled wrap around zero case
+                        // TODO handled wrap around zero case: stop currently tracked
+                        // segment
                     }
 
                     curPair.srcEnd = i;
@@ -223,23 +224,26 @@ public final class SnapNewNodesAction extends JosmAction {
                         newSrcNodes.add(startProj);
 
                         /* Extract a segment from dstWay with correct order of nodes */
-                        List<Node> dstSegment = new ArrayList<>();
+//                        List<Node> dstSegment = new ArrayList<>();
                         int dstStart = curP.dstStart;
                         int dstEnd = curP.dstEnd;
 
                         /* TODO direction should be chosen at tracking stage by looking at intermediate nodes */
-                        int direction = dstStart > dstEnd ? -1 : 1;
+                        int direction = curP.direction;
+                        if (direction == 0) { // TODO unclear when it can happen
+                            direction = dstStart > dstEnd ? -1 : 1;
+                        }
 
                         Logging.debug(
                             tr("Copying dest nodes in slice {0}:{1} direction {2}",
                                     dstStart, dstEnd, direction));
 
-                        assert direction != 0;
                         /* copy dst nodes with respect of possibility for wrap around */
                         int p = dstStart;
                         while (p != dstEnd) {
                             Node dstNode = dstWay.getNode(p);
                             newSrcNodes.add(dstNode);
+                            assert direction != 0;
                             p = p + direction;
                             if (p < 0){ /* wrap around zero */
                                 p = dstWay.getNodesCount()-1 ;
@@ -278,7 +282,20 @@ public final class SnapNewNodesAction extends JosmAction {
 
                 allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes));
                 /* TODO form a command to change dstWay as well */
-                /* TODO form a command to delete no longer needed src nodes */
+
+
+                List<Node> deletedNodes = new ArrayList<>();
+                for (Node n: srcWay.getNodes()) {
+                    if (!newSrcNodes.contains(n) && (n.getReferrers().size() <= 1)) {
+                        /* The node is no longer on the way and there are no other
+                         * ways to reference this node */
+                        deletedNodes.add(n);
+                    }
+                }
+                if (!deletedNodes.isEmpty()) {
+                    DeleteCommand dc = new DeleteCommand(deletedNodes);
+                    allCommands.add(dc);
+                }
 
                 final SequenceCommand rootCommand = new SequenceCommand(
                             tr("Snap {0} nodes", totalMovedNodes),
