@@ -145,32 +145,47 @@ public final class SnapNewNodesAction extends JosmAction {
                     curPair.srcN = sp.projectionCoord;
                     curPair.dstStart = sp.dstIndex;
 
+                    /* Until we know for sure, mark it as an end point as well */
                     curPair.srcEnd = curPair.srcStart;
                     curPair.dstEnd = curPair.dstStart;
                     curPair.dstN = curPair.srcN;
+                    curPair.direction = 0; // unknown yet
 
                 } else if (curPair.srcStart >= 0 && (sp.distance > distThreshold))
-                {   /* was tracking, stop tracking, because next node is too far away */
+                {   /* Was tracking, stop tracking, because next node is too far away */
                     /* Record the source and replacement segments */
                     assert i > 0; // cannot be for the very first node
                     assert curPair.srcStart >=0;
                     assert curPair.dstStart >=0;
                     assert curPair.dstEnd >=0;
-                    assert curPair.srcEnd >= 0;
+                    assert curPair.srcEnd >=0;
                     replPairs.add(new ReplacementPairs(curPair));
                     totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
                     curPair.reset();
-                } else  if (curPair.srcStart >= 0 && sp.distance <= distThreshold) {
-                    /* continue tracking, record the last known snapped node */
+                } else if (curPair.srcStart >= 0 && sp.distance <= distThreshold) {
+                    /* Continue tracking, record the last known end point */
+                    // TODO record in which direction we started to circle
+                    int deltaDstIndex = sp.dstIndex - curPair.dstEnd;
+                    int newDirection = deltaDstIndex > 0 ? 1 : deltaDstIndex < 0? -1 :0;
+
+                    if (curPair.direction != 0 && curPair.direction != newDirection) {
+                        /* This means that projection point jump to
+                         * another branch of dstWay */
+                        // TODO handled wrap around zero case
+                    }
+
                     curPair.srcEnd = i;
                     curPair.dstEnd = sp.dstIndex;
                     curPair.dstN = sp.projectionCoord;
+                    curPair.direction = newDirection;
+
+
                 } /* Otherwise continue tracking outside of snapping threshold */
             }
 
             if (curPair.srcStart >= 0 ) { /* we are still tracking, close it at the last node */
                 replPairs.add(new ReplacementPairs(curPair));
-                totalMovedNodes += curPair.srcEnd - curPair.srcStart;
+                totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
             }
 
             /* replPairs now contains all segments of srcWay that need to
@@ -186,7 +201,7 @@ public final class SnapNewNodesAction extends JosmAction {
                 /* List of dataset modification commands to be formed */
                 final Collection<Command> allCommands = new ArrayList<>();
 
-                /* New nodes of srcWay */
+                /* New nodes of srcWay collected in a new list */
                 List<Node>newSrcNodes = new ArrayList<>();
                 /* TODO Create a replacement way for dstWay with new nodes included */
                 int curPairIndex = 0;
@@ -208,26 +223,35 @@ public final class SnapNewNodesAction extends JosmAction {
                         newSrcNodes.add(startProj);
 
                         /* Extract a segment from dstWay with correct order of nodes */
-                        List<Node> dstSegment = null;
+                        List<Node> dstSegment = new ArrayList<>();
                         int dstStart = curP.dstStart;
                         int dstEnd = curP.dstEnd;
 
-                        if (dstStart <= dstEnd) {
-                            Logging.debug(tr("slice nodes {0}  {1}", dstStart, dstEnd));
-                            dstSegment = dstWay.getNodes().subList(dstStart, dstEnd);
+                        /* TODO direction should be chosen at tracking stage by looking at intermediate nodes */
+                        int direction = dstStart > dstEnd ? -1 : 1;
 
-                        } else {
-                            /* Reverse order of nodes */
-                            Logging.debug(tr("slice and reverse nodes {0}  {1}", dstEnd, dstStart));
-                            dstSegment = dstWay.getNodes().subList(dstEnd, dstStart);
-                            Collections.reverse(dstSegment);
+                        Logging.debug(
+                            tr("Copying dest nodes in slice {0}:{1} direction {2}",
+                                    dstStart, dstEnd, direction));
+
+                        assert direction != 0;
+                        /* copy dst nodes with respect of possibility for wrap around */
+                        int p = dstStart;
+                        while (p != dstEnd) {
+                            Node dstNode = dstWay.getNode(p);
+                            newSrcNodes.add(dstNode);
+                            p = p + direction;
+                            if (p < 0){ /* wrap around zero */
+                                p = dstWay.getNodesCount()-1 ;
+                            } else if (p >= dstWay.getNodesCount()) { /* warp around max node */
+                                p = 0;
+                            }
                         }
 
-                        if (!dstSegment.isEmpty()) {
-                            newSrcNodes.addAll(dstSegment);
-                        }
-
-                        if (true /* TODO add condition for empty segments */) {
+                        /* Add final projection node is it is unique
+                           from start projection node */
+                        if (curP.srcStart != curP.srcEnd) {
+                            assert curP.dstN != null;
                             Node endProj = new Node(curP.dstN);
                             AddCommand epcmd = new AddCommand(ds, endProj);
                             allCommands.add(epcmd);
@@ -237,8 +261,14 @@ public final class SnapNewNodesAction extends JosmAction {
                         i = curP.srcEnd; // skip all old nodes of the segment
                     } else { // preserve the original node
                         newSrcNodes.add(srcWay.getNode(i));
-                        i ++;
                     }
+                    /* At this point either of two things has happened:
+                     1. A source node[i] was added to newSrcNodes
+                     2. projection srcN, zero or more dst nodes and
+                        projection dstN (if it is different from srcN) were copied
+                        to newSrcNodes
+                     */
+                    i ++;
                 }
 
                 if (srcWayIsClosed) { /* Close the new way */
@@ -248,6 +278,7 @@ public final class SnapNewNodesAction extends JosmAction {
 
                 allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes));
                 /* TODO form a command to change dstWay as well */
+                /* TODO form a command to delete no longer needed src nodes */
 
                 final SequenceCommand rootCommand = new SequenceCommand(
                             tr("Snap {0} nodes", totalMovedNodes),

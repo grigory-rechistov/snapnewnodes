@@ -11,7 +11,8 @@ public class ReplacementPairs {
     public int dstEnd;
     public LatLon srcN;
     public LatLon dstN;
-    
+    public int direction;
+
     public ReplacementPairs() {
         this.reset();
     }
@@ -23,6 +24,7 @@ public class ReplacementPairs {
         this.dstEnd = p.dstEnd;
         this.srcN = p.srcN;
         this.dstN = p.dstN;
+        this.direction = p.direction;
     }
 
     public void reset() {
@@ -32,6 +34,7 @@ public class ReplacementPairs {
         this.dstEnd = -1;
         this.srcN = null;
         this.dstN = null;
+        this.direction = 0;
     }
 
 }
