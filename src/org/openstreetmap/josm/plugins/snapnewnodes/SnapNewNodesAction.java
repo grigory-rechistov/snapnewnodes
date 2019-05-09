@@ -206,49 +206,7 @@ public final class SnapNewNodesAction extends JosmAction {
                     i ++;
                 }
 
-                /* Exclude nodes with same coordinates or having zero or small
-                 * degrees between adjacent segments */
-                /* TODO make angleThreshold a configurable parameter */
-                final double angleThreshold = 0.5; // in degrees
-                int totalSmallAngledNodes = 0;
-                /* Find a node that has a small angle, delete it a repeat search
-                 * over the modified list until we cannot find such a node */
-                while (newSrcNodes.size() > 3) {
-                    int chosenIndex = -1;
-
-                    // XXX loop below does not test angle at the first/last nodes
-                    for (int k=1; k < newSrcNodes.size()-1; k ++) {
-                        Node prev = newSrcNodes.get(k-1);
-                        Node middle = newSrcNodes.get(k);
-                        Node next = newSrcNodes.get(k+1);
-
-                        /* First check for duplicate coordinates */
-                        if (prev.getCoor().equals(middle.getCoor())) {
-                            chosenIndex = k;
-                            break;
-                        }
-
-                        double angle = Geometry.getNormalizedAngleInDegrees(
-                                        Geometry.getCornerAngle(
-                                                    prev.getEastNorth(),
-                                                    middle.getEastNorth(),
-                                                    next.getEastNorth()));
-                        if (angle < angleThreshold) {
-                            chosenIndex = k;
-                            break;
-                        }
-                    }
-
-                    if (chosenIndex == -1) { // no more nodes
-                        break;
-                    } else {
-                        newSrcNodes.remove(chosenIndex);
-                        totalSmallAngledNodes++;
-                    }
-                }
-                Logging.debug(tr("Excluded {0} nodes with small angles", totalSmallAngledNodes));
-                /* TODO: some of the excluded nodes may be now orphaned.
-                 * They should be deleted if nothing else references them */
+                fixSmallAngles(newSrcNodes);
 
                 if (srcWayIsClosed) { /* Make sure to close the new way */
                     Node firstNode = newSrcNodes.get(0);
@@ -298,6 +256,54 @@ public final class SnapNewNodesAction extends JosmAction {
         long endTime = System.nanoTime();
         double durationSeconds = (endTime - startTime) / 1.0e9;
         Logging.debug("It took {0} seconds", durationSeconds);
+    }
+
+    /** Exclude nodes with same coordinates or having zero or small degrees
+     * between adjacent segments
+     * @param newSrcNodes - list of nodes to modify
+     */
+    private void fixSmallAngles(List<Node> newSrcNodes) {
+        /* TODO make angleThreshold a configurable plugin parameter */
+        final double angleThreshold = 0.5; // in degrees
+        int totalSmallAngledNodes = 0;
+        /* Find a node that has a small angle, delete it a repeat search
+         * over the modified list until we cannot find such a node */
+        while (newSrcNodes.size() > 3) {
+            int chosenIndex = -1;
+
+            // XXX loop below does not test angle at the first/last nodes
+            for (int k=1; k < newSrcNodes.size()-1; k ++) {
+                Node prev = newSrcNodes.get(k-1);
+                Node middle = newSrcNodes.get(k);
+                Node next = newSrcNodes.get(k+1);
+
+                /* First check for duplicate coordinates */
+                if (prev.getCoor().equals(middle.getCoor())) {
+                    chosenIndex = k;
+                    break;
+                }
+
+                double angle = Geometry.getNormalizedAngleInDegrees(
+                                Geometry.getCornerAngle(
+                                            prev.getEastNorth(),
+                                            middle.getEastNorth(),
+                                            next.getEastNorth()));
+                if (angle < angleThreshold) {
+                    chosenIndex = k;
+                    break;
+                }
+            }
+
+            if (chosenIndex == -1) { // no more nodes
+                break;
+            } else {
+                newSrcNodes.remove(chosenIndex);
+                totalSmallAngledNodes++;
+            }
+        }
+        Logging.debug(tr("Excluded {0} nodes with small angles", totalSmallAngledNodes));
+        /* TODO: some of the excluded nodes may be now orphaned.
+         * They should be deleted if nothing else references them */
     }
 
     /**
