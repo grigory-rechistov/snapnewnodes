@@ -77,17 +77,6 @@ public final class SnapNewNodesAction extends JosmAction {
                 tr("Warning"), JOptionPane.WARNING_MESSAGE, null);
     }
 
-    public static Comparator<Way> WayComparator = new Comparator<Way>() {
-
-        @Override
-        public int compare(Way w1, Way w2) {
-           Double w1l = w1.getLength();
-           Double w2l = w2.getLength();
-
-           return w2l.compareTo(w1l);
-        }
-    };
-
     @Override
     public void actionPerformed(final ActionEvent e) {
         Logging.debug("Snap action started");
