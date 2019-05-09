@@ -57,6 +57,7 @@ import org.openstreetmap.josm.gui.HelpAwareOptionPane;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.spi.preferences.Config;
+import org.openstreetmap.josm.tools.Geometry;
 import org.openstreetmap.josm.tools.Logging;
 import org.openstreetmap.josm.tools.Pair;
 import org.openstreetmap.josm.tools.Shortcut;
@@ -275,26 +276,66 @@ public final class SnapNewNodesAction extends JosmAction {
                     i ++;
                 }
 
-                if (srcWayIsClosed) { /* Close the new way */
+                if (srcWayIsClosed) { /* Make sure to close the new way */
                     Node firstNode = newSrcNodes.get(0);
                     newSrcNodes.set(newSrcNodes.size()-1, firstNode);
                 }
 
-                allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes));
-                /* TODO form a command to change dstWay as well */
+                allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes)); // TODO use ChangeCommand instead?
+                /* TODO form a command to change dstWay as well as we included
+                 * projection nodes to it */
 
 
-                List<Integer> prunedNodeIndexes = new ArrayList<>();
-                /* TODO  delete nodes in srcWay that create zero angles */
 
-                List<Pair<Double, Node>>angles = srcWay.getAngles();
-                for (Pair<Double, Node> pair: angles) {
-                    double angle = pair.a;
-                    STOPPED HERE;
+                /* Exclude nodes with same coordinates or having zero or small
+                 * degrees between adjacent segments */
+                /* TODO make angleThreshold a configurable parameter */
+                final double angleThreshold = 0.5; // in degrees
+                int totalSmallAngledNodes = 0;
+                /* Find a node that has a small angle, delete it a repeat search
+                 * over the modified list until we cannot find such a node */
+                while (newSrcNodes.size() > 3) {
+                    int chosenIndex = -1;
+
+                    // XXX loop below does not test angle at the first/last nodes
+                    for (int k=1; k < newSrcNodes.size()-1; k ++) {
+                        Node prev = newSrcNodes.get(k-1);
+                        Node middle = newSrcNodes.get(k);
+                        Node next = newSrcNodes.get(k+1);
+
+                        /* First check for duplicate coordinates */
+                        if (prev.getCoor().equals(middle.getCoor())) {
+                            chosenIndex = k;
+                            break;
+                        }
+
+                        double angle = Geometry.getNormalizedAngleInDegrees(
+                                        Geometry.getCornerAngle(
+                                                    prev.getEastNorth(),
+                                                    middle.getEastNorth(),
+                                                    next.getEastNorth()));
+                        if (angle < angleThreshold) {
+                            chosenIndex = k;
+                            break;
+                        }
+                    }
+
+                    if (chosenIndex == -1) { // no more nodes
+                        break;
+                    } else {
+                        newSrcNodes.remove(chosenIndex);
+                        totalSmallAngledNodes++;
+                    }
                 }
+                Logging.debug(tr("Excluded {0} nodes with small angles", totalSmallAngledNodes));
+                /* TODO: some of the excluded nodes may be now orphaned.
+                 * They should be deleted if nothing else references them */
 
 
-
+                /* Delete nodes that are no longer on new way.
+                 * NOTE: for debugging purposes, it actually helps to comment
+                 * this section out to be able to see where the original
+                 * positions of nodes were as left-overs */
                 List<Node> deletedNodes = new ArrayList<>();
                 for (Node n: srcWay.getNodes()) {
                     if (!newSrcNodes.contains(n) && (n.getReferrers().size() <= 1)) {
