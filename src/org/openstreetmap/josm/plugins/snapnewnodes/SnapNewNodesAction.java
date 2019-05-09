@@ -286,7 +286,7 @@ public final class SnapNewNodesAction extends JosmAction {
         for (Pair<Node, Node> p: dstWayInsertionPairs) {
             for (int k = 0; k < newDstNodes.size(); k ++) {
                 if (newDstNodes.get(k).equals(p.a)) {
-                    newDstNodes.add(k, p.b);
+                    newDstNodes.add(k+1, p.b);
                     break;
                 }
             }
@@ -304,9 +304,9 @@ public final class SnapNewNodesAction extends JosmAction {
         /* Find a node that has a small angle, delete it a repeat search
          * over the modified list until we cannot find such a node */
         while (nodes.size() > 3) {
-            int chosenIndex = -1;
+            boolean removedNode = false;
 
-            // XXX loop below does not test angle at the first/last nodes
+            // XXX The loop below does not test angle at the first/last nodes
             for (int k=1; k < nodes.size()-1; k ++) {
                 Node prev = nodes.get(k-1);
                 Node middle = nodes.get(k);
@@ -314,7 +314,9 @@ public final class SnapNewNodesAction extends JosmAction {
 
                 /* First check for duplicate coordinates */
                 if (prev.getCoor().equals(middle.getCoor())) {
-                    chosenIndex = k;
+                    nodes.remove(k);
+                    totalSmallAngledNodes++;
+                    removedNode = true;
                     break;
                 }
 
@@ -324,16 +326,14 @@ public final class SnapNewNodesAction extends JosmAction {
                                             middle.getEastNorth(),
                                             next.getEastNorth()));
                 if (angle < angleThreshold) {
-                    chosenIndex = k;
+                    nodes.remove(k);
+                    totalSmallAngledNodes++;
+                    removedNode = true;
                     break;
                 }
             }
-
-            if (chosenIndex == -1) { // no more nodes
+            if (!removedNode) {
                 break;
-            } else {
-                nodes.remove(chosenIndex);
-                totalSmallAngledNodes++;
             }
         }
         Logging.debug(tr("Excluded {0} nodes with small angles", totalSmallAngledNodes));
