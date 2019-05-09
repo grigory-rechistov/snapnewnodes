@@ -284,6 +284,17 @@ public final class SnapNewNodesAction extends JosmAction {
                 /* TODO form a command to change dstWay as well */
 
 
+                List<Integer> prunedNodeIndexes = new ArrayList<>();
+                /* TODO  delete nodes in srcWay that create zero angles */
+
+                List<Pair<Double, Node>>angles = srcWay.getAngles();
+                for (Pair<Double, Node> pair: angles) {
+                    double angle = pair.a;
+                    STOPPED HERE;
+                }
+
+
+
                 List<Node> deletedNodes = new ArrayList<>();
                 for (Node n: srcWay.getNodes()) {
                     if (!newSrcNodes.contains(n) && (n.getReferrers().size() <= 1)) {
