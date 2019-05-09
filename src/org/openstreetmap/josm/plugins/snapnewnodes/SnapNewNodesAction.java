@@ -121,12 +121,20 @@ public final class SnapNewNodesAction extends JosmAction {
                 /* List of dataset modification commands to be formed */
                 final Collection<Command> allCommands = new ArrayList<>();
 
-                /* Collect new nodes of srcWay into a new list */
+                /* Collect new nodes of srcWay into a list. It will be a mixture
+                 * of nodes from both ways */
                 List<Node>newSrcNodes = new ArrayList<>();
 
-                interleaveSrcSegments(srcWay, dstWay, replPairs, allCommands, newSrcNodes);
+                /* Collect new nodes of dstWay into new list. It will have
+                 * all nodes of the original list and some new nodes inserted
+                 * into the middle */
+                List<Node>newDstNodes = new ArrayList<>(dstWay.getNodes());
+
+                interleaveSrcSegments(srcWay, dstWay, replPairs, allCommands,
+                                      newSrcNodes, newDstNodes);
 
                 fixSmallAngles(newSrcNodes);
+                fixSmallAngles(newDstNodes);
 
                 if (srcWayIsClosed) { /* Make sure to close the new way */
                     Node firstNode = newSrcNodes.get(0);
@@ -134,6 +142,7 @@ public final class SnapNewNodesAction extends JosmAction {
                 }
 
                 allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes)); // TODO use ChangeCommand instead?
+                allCommands.add(new ChangeNodesCommand(dstWay, newDstNodes)); // TODO use ChangeCommand instead?
 
                 deleteAbandonedSrcNodes(srcWay, allCommands, newSrcNodes);
 
@@ -197,10 +206,15 @@ public final class SnapNewNodesAction extends JosmAction {
     private void interleaveSrcSegments(final Way srcWay, final Way dstWay,
                                     final List<ReplacementPairs> replPairs,
                                     Collection<Command> allCommands,
-                                    List<Node> newSrcNodes) {
+                                    List<Node> newSrcNodes,
+                                    List<Node> newDstNodes) {
         final int srcWaySize = srcWay.getNodesCount();
         int curPairIndex = 0;
         int i = 0;
+
+        /* pair of existing node and new node to be inserted into dstWay */
+        List<Pair<Node, Node>> dstWayInsertionPairs = new ArrayList<>();
+
         while (i < srcWaySize) {
             ReplacementPairs curP = replPairs.get(curPairIndex);
 
@@ -216,6 +230,9 @@ public final class SnapNewNodesAction extends JosmAction {
                 AddCommand spcmd = new AddCommand(srcWay.getDataSet(), startProj);
                 allCommands.add(spcmd);
                 newSrcNodes.add(startProj);
+
+                Node existingNode1 = dstWay.getNode(curP.dstStart);
+                dstWayInsertionPairs.add(new Pair<>(existingNode1, startProj));
 
                 /* Extract a segment from dstWay with correct order of nodes */
                 int dstStart = curP.dstStart;
@@ -253,6 +270,9 @@ public final class SnapNewNodesAction extends JosmAction {
                     AddCommand epcmd = new AddCommand(srcWay.getDataSet(), endProj);
                     allCommands.add(epcmd);
                     newSrcNodes.add(endProj);
+
+                    Node existingNode2 = dstWay.getNode(curP.dstEnd);
+                    dstWayInsertionPairs.add(new Pair<>(existingNode2, endProj));
                 }
                 curPairIndex ++; // now track the next segment pair
                 i = curP.srcEnd; // skip all old nodes of the segment
@@ -266,6 +286,16 @@ public final class SnapNewNodesAction extends JosmAction {
                 to newSrcNodes
              */
             i ++;
+        }
+
+        /* Insert projection nodes into newDstNodes */
+        for (Pair<Node, Node> p: dstWayInsertionPairs) {
+            for (int k = 0; k < newDstNodes.size(); k ++) {
+                if (newDstNodes.get(k).equals(p.a)) {
+                    newDstNodes.add(k, p.b);
+                    break;
+                }
+            }
         }
     }
 
