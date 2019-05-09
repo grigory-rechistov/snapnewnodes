@@ -116,7 +116,6 @@ public final class SnapNewNodesAction extends JosmAction {
             final Way srcWay = selectedWays.get(0);
             final Way dstWay = selectedWays.get(1);
 
-            final int srcWaySize = srcWay.getNodesCount();
             final boolean srcWayIsClosed = srcWay.isClosed();
 
             Logging.debug("Snapping way {0} to way {1}",
@@ -128,7 +127,7 @@ public final class SnapNewNodesAction extends JosmAction {
             if (replPairs.size() > 0) {
                 /* add a fake stub end item to allow copying of the tail */
                 ReplacementPairs terminatorEntry = new ReplacementPairs();
-                terminatorEntry.srcStart = srcWaySize + 1; // outside of boundaries to never be reached
+                terminatorEntry.srcStart = srcWay.getNodesCount() + 1; // outside of boundaries to never be reached
                 replPairs.add(terminatorEntry);
 
                 /* List of dataset modification commands to be formed */
@@ -137,74 +136,7 @@ public final class SnapNewNodesAction extends JosmAction {
                 /* Collect new nodes of srcWay into a new list */
                 List<Node>newSrcNodes = new ArrayList<>();
 
-                int curPairIndex = 0;
-                int i = 0;
-                while (i < srcWaySize) {
-                    ReplacementPairs curP = replPairs.get(curPairIndex);
-
-                    /* There should be no way to enter deep into a replaced segment */
-                    assert i <= curP.srcStart;
-
-                    if (i == curP.srcStart) {
-                        /* It has reached the replacement segment start.
-                         * Copy new start and end nodes and all nodes
-                         * in between now come from dstWay */
-                        assert curP.srcN != null;
-                        Node startProj = new Node(curP.srcN);
-                        AddCommand spcmd = new AddCommand(ds, startProj);
-                        allCommands.add(spcmd);
-                        newSrcNodes.add(startProj);
-
-                        /* Extract a segment from dstWay with correct order of nodes */
-                        int dstStart = curP.dstStart;
-                        int dstEnd = curP.dstEnd;
-
-                        /* TODO direction should be chosen at tracking stage by looking at intermediate nodes */
-                        int direction = curP.direction;
-                        if (direction == 0) { // TODO unclear when it can happen
-                            direction = dstStart > dstEnd ? -1 : 1;
-                        }
-
-                        Logging.debug(
-                            tr("Copying dest nodes in slice {0}:{1} direction {2}",
-                                    dstStart, dstEnd, direction));
-
-                        /* Copy dst nodes with respect of possibility for wrap around */
-                        int p = dstStart;
-                        while (p != dstEnd) {
-                            Node dstNode = dstWay.getNode(p);
-                            newSrcNodes.add(dstNode);
-                            assert direction != 0;
-                            p = p + direction;
-                            if (p < 0){ /* wrap around zero */
-                                p = dstWay.getNodesCount()-1 ;
-                            } else if (p >= dstWay.getNodesCount()) { /* warp around max node */
-                                p = 0;
-                            }
-                        }
-
-                        /* Add final projection node if it is different
-                           from start projection node */
-                        if (curP.srcStart != curP.srcEnd) { // TODO should projections' coordinates be checked instead?
-                            assert curP.dstN != null;
-                            Node endProj = new Node(curP.dstN);
-                            AddCommand epcmd = new AddCommand(ds, endProj);
-                            allCommands.add(epcmd);
-                            newSrcNodes.add(endProj);
-                        }
-                        curPairIndex ++; // now track the next segment pair
-                        i = curP.srcEnd; // skip all old nodes of the segment
-                    } else { // preserve the original node
-                        newSrcNodes.add(srcWay.getNode(i));
-                    }
-                    /* At this point either of two things has happened:
-                     1. A source node[i] was added to newSrcNodes
-                     2. projection srcN, zero or more dst nodes and projection
-                        dstN (if it is different from srcN) were copied
-                        to newSrcNodes
-                     */
-                    i ++;
-                }
+                interleaveSrcSegments(srcWay, dstWay, replPairs, allCommands, newSrcNodes);
 
                 fixSmallAngles(newSrcNodes);
 
@@ -256,6 +188,85 @@ public final class SnapNewNodesAction extends JosmAction {
         long endTime = System.nanoTime();
         double durationSeconds = (endTime - startTime) / 1.0e9;
         Logging.debug("It took {0} seconds", durationSeconds);
+    }
+
+    /** Mutate @param srcWay into @param newSrcNodes by using segments
+     * from @param dstWay according to @param replPairs.
+     * @return @param allCommands and newSrcNodes
+     */
+    private void interleaveSrcSegments(final Way srcWay, final Way dstWay,
+                                    final List<ReplacementPairs> replPairs,
+                                    Collection<Command> allCommands,
+                                    List<Node> newSrcNodes) {
+        final int srcWaySize = srcWay.getNodesCount();
+        int curPairIndex = 0;
+        int i = 0;
+        while (i < srcWaySize) {
+            ReplacementPairs curP = replPairs.get(curPairIndex);
+
+            /* There should be no way to enter deep into a replaced segment */
+            assert i <= curP.srcStart;
+
+            if (i == curP.srcStart) {
+                /* It has reached the replacement segment start.
+                 * Copy new start and end nodes and all nodes
+                 * in between now come from dstWay */
+                assert curP.srcN != null;
+                Node startProj = new Node(curP.srcN);
+                AddCommand spcmd = new AddCommand(srcWay.getDataSet(), startProj);
+                allCommands.add(spcmd);
+                newSrcNodes.add(startProj);
+
+                /* Extract a segment from dstWay with correct order of nodes */
+                int dstStart = curP.dstStart;
+                int dstEnd = curP.dstEnd;
+
+                /* TODO direction should be chosen at tracking stage by looking at intermediate nodes */
+                int direction = curP.direction;
+                if (direction == 0) { // TODO unclear when it can happen
+                    direction = dstStart > dstEnd ? -1 : 1;
+                }
+
+                Logging.debug(
+                    tr("Copying dest nodes in slice {0}:{1} direction {2}",
+                            dstStart, dstEnd, direction));
+
+                /* Copy dst nodes with respect of possibility for wrap around */
+                int p = dstStart;
+                while (p != dstEnd) {
+                    Node dstNode = dstWay.getNode(p);
+                    newSrcNodes.add(dstNode);
+                    assert direction != 0;
+                    p = p + direction;
+                    if (p < 0){ /* wrap around zero */
+                        p = dstWay.getNodesCount()-1 ;
+                    } else if (p >= dstWay.getNodesCount()) { /* warp around max node */
+                        p = 0;
+                    }
+                }
+
+                /* Add final projection node if it is different
+                   from start projection node */
+                if (curP.srcStart != curP.srcEnd) { // TODO should projections' coordinates be checked instead?
+                    assert curP.dstN != null;
+                    Node endProj = new Node(curP.dstN);
+                    AddCommand epcmd = new AddCommand(srcWay.getDataSet(), endProj);
+                    allCommands.add(epcmd);
+                    newSrcNodes.add(endProj);
+                }
+                curPairIndex ++; // now track the next segment pair
+                i = curP.srcEnd; // skip all old nodes of the segment
+            } else { // preserve the original node
+                newSrcNodes.add(srcWay.getNode(i));
+            }
+            /* At this point either of two things has happened:
+             1. A source node[i] was added to newSrcNodes
+             2. projection srcN, zero or more dst nodes and projection
+                dstN (if it is different from srcN) were copied
+                to newSrcNodes
+             */
+            i ++;
+        }
     }
 
     /** Exclude nodes with same coordinates or having zero or small degrees
