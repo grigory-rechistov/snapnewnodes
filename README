@@ -1,10 +1,13 @@
 README 
 ======
 
-This plugin is for snapping nodes of newly added ways to ways already present
-in the database.
+Select exactly two ways, and the tool will glue sections of the first way to 
+sections of the second way when distance between them is less than specified 
+threshold (in meters).
 
+Be sure to read `BUGS` as this plugin certainly has many!
 
-Author: Grigory Rechistov
-Based on simplifyarea by Martin Zdila <m.zdila@gmail.com>
+Author: Grigory Rechistov <grigory.rechistov@gmail.com>
+
+The plugin is inspired by `simplifyarea` by Martin Zdila <m.zdila@gmail.com>.
 
