@@ -40,9 +40,9 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
 
     public SnapNewNodesPreferenceSetting() {
         super("snapnewnodes", tr("Snap New Nodes"),
-                tr("A node of a way is merged to a node or segment of another way if distance between them is less than the specified threshold." +
-                   " Ways to be snapped to are limited to land cover (landuse=*) and similar features." +
-                   " Nodes already connecting two or more ways are never moved."
+                tr("Snap segments of the forst selected way to segments of the "
+                   + "second selected way when distance between their nodes is "
+                   + "less than specified threshold."
              ));
     }
 
@@ -53,7 +53,8 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
         distanceThreshold.setText(Config.getPref().get(DIST_THRESHOLD, "10"));
         tab.add(new JLabel(tr("Distance Threshold (in meters)")), GBC.std());
         tab.add(distanceThreshold, GBC.eol().fill(GBC.HORIZONTAL).insets(5,0,0,5));
-        
+
+        // TODO remove
         candidateLengthThreshold.setText(Config.getPref().get(CANDIDATE_LENGTH_THRESHOLD, "100"));
         tab.add(new JLabel(tr("Minimum way length to be eligible for snapping (in meters)")), GBC.std());
         tab.add(candidateLengthThreshold, GBC.eol().fill(GBC.HORIZONTAL).insets(5,0,0,5));
