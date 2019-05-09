@@ -66,8 +66,9 @@ import org.openstreetmap.josm.tools.Utils;
 public final class SnapNewNodesAction extends JosmAction {
 
     public SnapNewNodesAction() {
-        super(tr("Snap New Nodes"), "simplify", tr("Snap close nodes of way(s)"),
-                Shortcut.registerShortcut("tools:snapnewnodes", tr("Tool: {0}", tr("Snap New Nodes")), KeyEvent.VK_Z, Shortcut.CTRL_SHIFT),
+        super(tr("Snap Ways"), "simplify", tr("Snap a way to another way"),
+                Shortcut.registerShortcut("tools:snapnewnodes", tr("Tool: {0}",
+                        tr("Snap Ways")), KeyEvent.VK_S, Shortcut.CTRL_SHIFT),
                 true, "snapnewnodes", true);
     }
 
@@ -79,9 +80,9 @@ public final class SnapNewNodesAction extends JosmAction {
 
     @Override
     public void actionPerformed(final ActionEvent e) {
-        Logging.debug("Snap action started");
+        Logging.debug("Snap ways action started");
         final double distThreshold = Config.getPref().getDouble(
-                    SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
+                    SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10.0);
         long startTime = System.nanoTime();
 
         final DataSet ds = getLayerManager().getEditDataSet();
@@ -238,7 +239,6 @@ public final class SnapNewNodesAction extends JosmAction {
                 int dstStart = curP.dstStart;
                 int dstEnd = curP.dstEnd;
 
-                /* TODO direction should be chosen at tracking stage by looking at intermediate nodes */
                 int direction = curP.direction;
                 if (direction == 0) { // TODO unclear when it can happen
                     direction = dstStart > dstEnd ? -1 : 1;
@@ -362,11 +362,11 @@ public final class SnapNewNodesAction extends JosmAction {
 
         ReplacementPairs curPair = new ReplacementPairs();
 
-        for (int i = 0; i < srcWaySize; i ++) { // TODO the last node is equal to the first! Exclude it?
+        for (int i = 0; i < srcWaySize; i ++) {
             Node n = srcWay.getNode(i);
             SnappingPlace sp = null;
 
-            // TODO determine a list of checks that decide whcih nodes should be left alone
+            // TODO determine a list of checks that decide which nodes should be left alone
 //                if (n.getParentWays().contains(dstWay)) {
 //                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
 //                } else {
@@ -431,8 +431,8 @@ public final class SnapNewNodesAction extends JosmAction {
      * @return pair of projection's coordinates and distance from @param a to it
      * XXX: the algorithm for finding a projection to a line works in assumption
      * for Cartesian coordinates and two-dimensional plane. It is not true for
-     * (lat, lon) pairs and Earth surface. As a result,
-     * the resulting point lies on a curve connecting b and c somewhat roughly
+     * (lat, lon) pairs and Earth surface. As a result, the resulting point
+     * lies not on a line but on a curve connecting b and c somewhat roughly
      * inside their bounding box. */
     private static Pair<LatLon, Double> calculateNearestPointOnSegment(
                                                         final Node a,
@@ -479,7 +479,8 @@ public final class SnapNewNodesAction extends JosmAction {
         double minDistance = Double.POSITIVE_INFINITY;
         LatLon newCoords = null;
 
-        // TODO add a check for bounding box of w and n?
+        // Some speedup might be obtained from checking for bounding box
+        // intersections of w and n before calculating all the distances.
 
         for (int k = 0; k < w.getNodesCount()-1; k ++) {
             Pair<LatLon, Double> res = calculateNearestPointOnSegment(n,
