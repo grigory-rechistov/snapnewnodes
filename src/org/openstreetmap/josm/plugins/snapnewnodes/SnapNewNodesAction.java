@@ -177,18 +177,18 @@ public final class SnapNewNodesAction extends JosmAction {
 
 
     /** Delete nodes that are no longer on new way.
-     * @param srcWay - way from which nodes are controlled
-     * @param newSrcNodes - list that contains all used nodes
+     * @param way - way from which nodes are controlled
+     * @param newNodes - list that contains all used nodes
      * @param allCommands - list to extend with deletion commands
      * NOTE: for debugging purposes, it actually helps to comment
      * this section out to be able to see where the original
      * positions of nodes were as left-overs */
-    private void deleteAbandonedSrcNodes(final Way srcWay,
+    private void deleteAbandonedSrcNodes(final Way way,
             Collection<Command> allCommands,
-            List<Node> newSrcNodes) {
+            List<Node> newNodes) {
         List<Node> deletedNodes = new ArrayList<>();
-        for (Node n: srcWay.getNodes()) {
-            if (!newSrcNodes.contains(n) && (n.getReferrers().size() <= 1)) {
+        for (Node n: way.getNodes()) {
+            if (!newNodes.contains(n) && (n.getReferrers().size() <= 1)) {
                 /* The node is no longer on the way and there are no other
                  * ways to reference this node */
                 deletedNodes.add(n);
@@ -301,22 +301,22 @@ public final class SnapNewNodesAction extends JosmAction {
 
     /** Exclude nodes with same coordinates or having zero or small degrees
      * between adjacent segments
-     * @param newSrcNodes - list of nodes to modify
+     * @param nodes - list of nodes to modify
      */
-    private void fixSmallAngles(List<Node> newSrcNodes) {
+    private void fixSmallAngles(List<Node> nodes) {
         /* TODO make angleThreshold a configurable plugin parameter */
         final double angleThreshold = 0.5; // in degrees
         int totalSmallAngledNodes = 0;
         /* Find a node that has a small angle, delete it a repeat search
          * over the modified list until we cannot find such a node */
-        while (newSrcNodes.size() > 3) {
+        while (nodes.size() > 3) {
             int chosenIndex = -1;
 
             // XXX loop below does not test angle at the first/last nodes
-            for (int k=1; k < newSrcNodes.size()-1; k ++) {
-                Node prev = newSrcNodes.get(k-1);
-                Node middle = newSrcNodes.get(k);
-                Node next = newSrcNodes.get(k+1);
+            for (int k=1; k < nodes.size()-1; k ++) {
+                Node prev = nodes.get(k-1);
+                Node middle = nodes.get(k);
+                Node next = nodes.get(k+1);
 
                 /* First check for duplicate coordinates */
                 if (prev.getCoor().equals(middle.getCoor())) {
@@ -338,7 +338,7 @@ public final class SnapNewNodesAction extends JosmAction {
             if (chosenIndex == -1) { // no more nodes
                 break;
             } else {
-                newSrcNodes.remove(chosenIndex);
+                nodes.remove(chosenIndex);
                 totalSmallAngledNodes++;
             }
         }
