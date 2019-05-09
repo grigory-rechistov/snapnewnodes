@@ -136,22 +136,7 @@ public final class SnapNewNodesAction extends JosmAction {
 
                 allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes)); // TODO use ChangeCommand instead?
 
-                /* Delete nodes that are no longer on new way.
-                 * NOTE: for debugging purposes, it actually helps to comment
-                 * this section out to be able to see where the original
-                 * positions of nodes were as left-overs */
-                List<Node> deletedNodes = new ArrayList<>();
-                for (Node n: srcWay.getNodes()) {
-                    if (!newSrcNodes.contains(n) && (n.getReferrers().size() <= 1)) {
-                        /* The node is no longer on the way and there are no other
-                         * ways to reference this node */
-                        deletedNodes.add(n);
-                    }
-                }
-                if (!deletedNodes.isEmpty()) {
-                    DeleteCommand dc = new DeleteCommand(deletedNodes);
-                    allCommands.add(dc);
-                }
+                deleteAbandonedSrcNodes(srcWay, allCommands, newSrcNodes);
 
                 final SequenceCommand rootCommand = new SequenceCommand(
                             tr("Snap {0} nodes", totalMovedNodes),
@@ -177,6 +162,31 @@ public final class SnapNewNodesAction extends JosmAction {
         long endTime = System.nanoTime();
         double durationSeconds = (endTime - startTime) / 1.0e9;
         Logging.debug("It took {0} seconds", durationSeconds);
+    }
+
+
+    /** Delete nodes that are no longer on new way.
+     * @param srcWay - way from which nodes are controlled
+     * @param newSrcNodes - list that contains all used nodes
+     * @param allCommands - list to extend with deletion commands
+     * NOTE: for debugging purposes, it actually helps to comment
+     * this section out to be able to see where the original
+     * positions of nodes were as left-overs */
+    private void deleteAbandonedSrcNodes(final Way srcWay,
+            Collection<Command> allCommands,
+            List<Node> newSrcNodes) {
+        List<Node> deletedNodes = new ArrayList<>();
+        for (Node n: srcWay.getNodes()) {
+            if (!newSrcNodes.contains(n) && (n.getReferrers().size() <= 1)) {
+                /* The node is no longer on the way and there are no other
+                 * ways to reference this node */
+                deletedNodes.add(n);
+            }
+        }
+        if (!deletedNodes.isEmpty()) {
+            DeleteCommand dc = new DeleteCommand(deletedNodes);
+            allCommands.add(dc);
+        }
     }
 
     /** Mutate @param srcWay into @param newSrcNodes by using segments
