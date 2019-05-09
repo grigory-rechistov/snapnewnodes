@@ -203,9 +203,9 @@ public final class SnapNewNodesAction extends JosmAction {
                 /* List of dataset modification commands to be formed */
                 final Collection<Command> allCommands = new ArrayList<>();
 
-                /* New nodes of srcWay collected in a new list */
+                /* Collect new nodes of srcWay into a new list */
                 List<Node>newSrcNodes = new ArrayList<>();
-                /* TODO Create a replacement way for dstWay with new nodes included */
+
                 int curPairIndex = 0;
                 int i = 0;
                 while (i < srcWaySize) {
@@ -225,7 +225,6 @@ public final class SnapNewNodesAction extends JosmAction {
                         newSrcNodes.add(startProj);
 
                         /* Extract a segment from dstWay with correct order of nodes */
-//                        List<Node> dstSegment = new ArrayList<>();
                         int dstStart = curP.dstStart;
                         int dstEnd = curP.dstEnd;
 
@@ -239,7 +238,7 @@ public final class SnapNewNodesAction extends JosmAction {
                             tr("Copying dest nodes in slice {0}:{1} direction {2}",
                                     dstStart, dstEnd, direction));
 
-                        /* copy dst nodes with respect of possibility for wrap around */
+                        /* Copy dst nodes with respect of possibility for wrap around */
                         int p = dstStart;
                         while (p != dstEnd) {
                             Node dstNode = dstWay.getNode(p);
@@ -253,9 +252,9 @@ public final class SnapNewNodesAction extends JosmAction {
                             }
                         }
 
-                        /* Add final projection node is it is unique
+                        /* Add final projection node if it is different
                            from start projection node */
-                        if (curP.srcStart != curP.srcEnd) {
+                        if (curP.srcStart != curP.srcEnd) { // TODO should projections' coordinates be checked instead?
                             assert curP.dstN != null;
                             Node endProj = new Node(curP.dstN);
                             AddCommand epcmd = new AddCommand(ds, endProj);
@@ -269,23 +268,12 @@ public final class SnapNewNodesAction extends JosmAction {
                     }
                     /* At this point either of two things has happened:
                      1. A source node[i] was added to newSrcNodes
-                     2. projection srcN, zero or more dst nodes and
-                        projection dstN (if it is different from srcN) were copied
+                     2. projection srcN, zero or more dst nodes and projection
+                        dstN (if it is different from srcN) were copied
                         to newSrcNodes
                      */
                     i ++;
                 }
-
-                if (srcWayIsClosed) { /* Make sure to close the new way */
-                    Node firstNode = newSrcNodes.get(0);
-                    newSrcNodes.set(newSrcNodes.size()-1, firstNode);
-                }
-
-                allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes)); // TODO use ChangeCommand instead?
-                /* TODO form a command to change dstWay as well as we included
-                 * projection nodes to it */
-
-
 
                 /* Exclude nodes with same coordinates or having zero or small
                  * degrees between adjacent segments */
@@ -331,6 +319,12 @@ public final class SnapNewNodesAction extends JosmAction {
                 /* TODO: some of the excluded nodes may be now orphaned.
                  * They should be deleted if nothing else references them */
 
+                if (srcWayIsClosed) { /* Make sure to close the new way */
+                    Node firstNode = newSrcNodes.get(0);
+                    newSrcNodes.set(newSrcNodes.size()-1, firstNode);
+                }
+
+                allCommands.add(new ChangeNodesCommand(srcWay, newSrcNodes)); // TODO use ChangeCommand instead?
 
                 /* Delete nodes that are no longer on new way.
                  * NOTE: for debugging purposes, it actually helps to comment
@@ -406,7 +400,7 @@ public final class SnapNewNodesAction extends JosmAction {
             t = ((a_p.lon() - b_p.lon()) * px + (a_p.lat() - b_p.lat()) * py)
                     / squaredLength;
         }
-        /* Bind t to the range (0.0; 1.0) */
+        /* Bind t to the range [0.0; 1.0] */
         t = Math.max(t, 0.0);
         t = Math.min(t, 1.0);
 
