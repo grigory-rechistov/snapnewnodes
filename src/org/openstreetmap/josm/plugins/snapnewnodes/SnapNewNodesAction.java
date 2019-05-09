@@ -83,7 +83,6 @@ public final class SnapNewNodesAction extends JosmAction {
         final double distThreshold = Config.getPref().getDouble(
                     SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
         long startTime = System.nanoTime();
-        int totalMovedNodes = 0 ;
 
         final DataSet ds = getLayerManager().getEditDataSet();
         if (ds == null)
@@ -139,22 +138,24 @@ public final class SnapNewNodesAction extends JosmAction {
                 deleteAbandonedSrcNodes(srcWay, allCommands, newSrcNodes);
 
                 final SequenceCommand rootCommand = new SequenceCommand(
-                            tr("Snap {0} nodes", totalMovedNodes),
+                            tr("Snap nodes from {0} to {1}",
+                                    srcWay.getDisplayName(DefaultNameFormatter.getInstance()),
+                                    dstWay.getDisplayName(DefaultNameFormatter.getInstance())),
                                 allCommands);
                 UndoRedoHandler.getInstance().add(rootCommand);
                 MainApplication.getMap().repaint();
+                String infoMsg = tr("Snapping finished");
+                new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
+                Logging.debug(infoMsg);
             } else {
+                String infoMsg = tr("No nodes or segments to snap were found.");
                 new Notification(
-                        tr("No nodes or segments to snap were found."))
+                        infoMsg)
                         .setIcon(JOptionPane.INFORMATION_MESSAGE)
                         .setDuration(Notification.TIME_SHORT)
                         .show();
+                Logging.debug(infoMsg);
             }
-
-            String infoMsg = tr("Snapped {0} nodes", totalMovedNodes);
-            new Notification(infoMsg).setIcon(JOptionPane.INFORMATION_MESSAGE).show();
-            Logging.debug(infoMsg);
-
         } finally {
             ds.endUpdate();
         }
@@ -323,7 +324,9 @@ public final class SnapNewNodesAction extends JosmAction {
      * @return list of tuples that contain all segments of srcWay that need to
      * be replaced with segments of dstWay and new nodes to be created
      * at transition points */
-    private List<ReplacementPairs> getReplacementPairs(final double distThreshold, final Way srcWay, final Way dstWay) {
+    private List<ReplacementPairs> getReplacementPairs(final double distThreshold,
+                                                       final Way srcWay,
+                                                       final Way dstWay) {
         final int srcWaySize = srcWay.getNodesCount();
         List<ReplacementPairs> replPairs = new ArrayList<>();
 
@@ -333,6 +336,7 @@ public final class SnapNewNodesAction extends JosmAction {
             Node n = srcWay.getNode(i);
             SnappingPlace sp = null;
 
+            // TODO determine a list of checks that decide whcih nodes should be left alone
 //                if (n.getParentWays().contains(dstWay)) {
 //                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
 //                } else {
@@ -361,7 +365,6 @@ public final class SnapNewNodesAction extends JosmAction {
                 assert curPair.dstEnd >=0;
                 assert curPair.srcEnd >=0;
                 replPairs.add(new ReplacementPairs(curPair));
-//                    totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
                 curPair.reset();
             } else if (curPair.srcStart >= 0 && sp.distance <= distThreshold) {
                 /* Continue tracking, record the last known end point */
@@ -387,7 +390,6 @@ public final class SnapNewNodesAction extends JosmAction {
 
         if (curPair.srcStart >= 0 ) { /* we are still tracking, close it at the last node */
             replPairs.add(new ReplacementPairs(curPair));
-//                totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
         }
         return replPairs;
     }
