@@ -72,12 +72,6 @@ public final class SnapNewNodesAction extends JosmAction {
                 true, "snapnewnodes", true);
     }
 
-    private void alertNoMovableNodesFound() {
-        HelpAwareOptionPane.showOptionDialog(MainApplication.getMainFrame(),
-                tr("No nodes that can be moved were present in selected ways."),
-                tr("Warning"), JOptionPane.WARNING_MESSAGE, null);
-    }
-
     @Override
     public void actionPerformed(final ActionEvent e) {
         Logging.debug("Snap ways action started");
@@ -497,22 +491,22 @@ public final class SnapNewNodesAction extends JosmAction {
     }
 
 
-    private static boolean nodeGluesWays(final Node node) {
-        Set<Node> referenceNeighbours = null;
-        for (final OsmPrimitive ref : node.getReferrers()) {
-            if (ref.getType() == OsmPrimitiveType.WAY) {
-                final Way way = ((Way) ref);
-                final Set<Node> neighbours = way.getNeighbours(node);
-                if (referenceNeighbours == null) {
-                    referenceNeighbours = neighbours;
-                } else if (!referenceNeighbours.containsAll(neighbours)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
+//    private static boolean nodeGluesWays(final Node node) {
+//        Set<Node> referenceNeighbours = null;
+//        for (final OsmPrimitive ref : node.getReferrers()) {
+//            if (ref.getType() == OsmPrimitiveType.WAY) {
+//                final Way way = ((Way) ref);
+//                final Set<Node> neighbours = way.getNeighbours(node);
+//                if (referenceNeighbours == null) {
+//                    referenceNeighbours = neighbours;
+//                } else if (!referenceNeighbours.containsAll(neighbours)) {
+//                    return true;
+//                }
+//            }
+//        }
+//
+//        return false;
+//    }
 
     @Override
     protected void updateEnabledState() {
