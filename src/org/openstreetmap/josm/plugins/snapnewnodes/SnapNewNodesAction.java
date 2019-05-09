@@ -93,8 +93,6 @@ public final class SnapNewNodesAction extends JosmAction {
         Logging.debug("Snap action started");
         final double distThreshold = Config.getPref().getDouble(
                     SnapNewNodesPreferenceSetting.DIST_THRESHOLD, 10);
-//        final double clThreshold = Config.getPref().getDouble(
-//                    SnapNewNodesPreferenceSetting.CANDIDATE_LENGTH_THRESHOLD, 100);
         long startTime = System.nanoTime();
         int totalMovedNodes = 0 ;
 
@@ -118,81 +116,14 @@ public final class SnapNewNodesAction extends JosmAction {
             final Way srcWay = selectedWays.get(0);
             final Way dstWay = selectedWays.get(1);
 
-            final boolean srcWayIsClosed = srcWay.isClosed();
             final int srcWaySize = srcWay.getNodesCount();
+            final boolean srcWayIsClosed = srcWay.isClosed();
 
             Logging.debug("Snapping way {0} to way {1}",
                     srcWay.getDisplayName(DefaultNameFormatter.getInstance()),
                     dstWay.getDisplayName(DefaultNameFormatter.getInstance()));
 
-            List<ReplacementPairs> replPairs = new ArrayList<>();
-
-            ReplacementPairs curPair = new ReplacementPairs();
-
-            for (int i = 0; i < srcWaySize; i ++) { // TODO the last node is equal to the first! Exclude it?
-                Node n = srcWay.getNode(i);
-                SnappingPlace sp = null;
-
-//                if (n.getParentWays().contains(dstWay)) {
-//                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
-//                } else {
-                sp = calculateNearestPointOnWay(n, dstWay);
-                assert sp.dstIndex >= 0;
-//                }
-
-                if (curPair.srcStart < 0 && sp.distance <= distThreshold) {
-                    /* not tracking before, start tracking now */
-                    curPair.srcStart = i;
-                    curPair.srcN = sp.projectionCoord;
-                    curPair.dstStart = sp.dstIndex;
-
-                    /* Until we know for sure, mark it as an end point as well */
-                    curPair.srcEnd = curPair.srcStart;
-                    curPair.dstEnd = curPair.dstStart;
-                    curPair.dstN = curPair.srcN;
-                    curPair.direction = 0; // unknown yet
-
-                } else if (curPair.srcStart >= 0 && (sp.distance > distThreshold))
-                {   /* Was tracking, stop tracking, because next node is too far away */
-                    /* Record the source and replacement segments */
-                    assert i > 0; // cannot be for the very first node
-                    assert curPair.srcStart >=0;
-                    assert curPair.dstStart >=0;
-                    assert curPair.dstEnd >=0;
-                    assert curPair.srcEnd >=0;
-                    replPairs.add(new ReplacementPairs(curPair));
-                    totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
-                    curPair.reset();
-                } else if (curPair.srcStart >= 0 && sp.distance <= distThreshold) {
-                    /* Continue tracking, record the last known end point */
-                    // TODO record in which direction we started to circle
-                    int deltaDstIndex = sp.dstIndex - curPair.dstEnd;
-                    int newDirection = deltaDstIndex > 0 ? 1 : deltaDstIndex < 0? -1 :0;
-
-                    if (curPair.direction != 0 && curPair.direction != newDirection) {
-                        /* This means that projection point jump to
-                         * another branch of dstWay */
-                        // TODO handled wrap around zero case: stop currently tracked
-                        // segment
-                    }
-
-                    curPair.srcEnd = i;
-                    curPair.dstEnd = sp.dstIndex;
-                    curPair.dstN = sp.projectionCoord;
-                    curPair.direction = newDirection;
-
-
-                } /* Otherwise continue tracking outside of snapping threshold */
-            }
-
-            if (curPair.srcStart >= 0 ) { /* we are still tracking, close it at the last node */
-                replPairs.add(new ReplacementPairs(curPair));
-                totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
-            }
-
-            /* replPairs now contains all segments of srcWay that need to
-             * be replaced with segments of dstWay and new nodes to be created
-             * at transition points */
+            List<ReplacementPairs> replPairs = getReplacementPairs(distThreshold, srcWay, dstWay);
 
             if (replPairs.size() > 0) {
                 /* add a fake stub end item to allow copying of the tail */
@@ -367,6 +298,82 @@ public final class SnapNewNodesAction extends JosmAction {
         long endTime = System.nanoTime();
         double durationSeconds = (endTime - startTime) / 1.0e9;
         Logging.debug("It took {0} seconds", durationSeconds);
+    }
+
+    /**
+     * @param distThreshold distance between nodes and ways to start snapping
+     * @param srcWay - from which way to snap nodes
+     * @param dstWay - to which way to snap
+     * @return list of tuples that contain all segments of srcWay that need to
+     * be replaced with segments of dstWay and new nodes to be created
+     * at transition points */
+    private List<ReplacementPairs> getReplacementPairs(final double distThreshold, final Way srcWay, final Way dstWay) {
+        final int srcWaySize = srcWay.getNodesCount();
+        List<ReplacementPairs> replPairs = new ArrayList<>();
+
+        ReplacementPairs curPair = new ReplacementPairs();
+
+        for (int i = 0; i < srcWaySize; i ++) { // TODO the last node is equal to the first! Exclude it?
+            Node n = srcWay.getNode(i);
+            SnappingPlace sp = null;
+
+//                if (n.getParentWays().contains(dstWay)) {
+//                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
+//                } else {
+            sp = calculateNearestPointOnWay(n, dstWay);
+            assert sp.dstIndex >= 0;
+//                }
+
+            if (curPair.srcStart < 0 && sp.distance <= distThreshold) {
+                /* not tracking before, start tracking now */
+                curPair.srcStart = i;
+                curPair.srcN = sp.projectionCoord;
+                curPair.dstStart = sp.dstIndex;
+
+                /* Until we know for sure, mark it as an end point as well */
+                curPair.srcEnd = curPair.srcStart;
+                curPair.dstEnd = curPair.dstStart;
+                curPair.dstN = curPair.srcN;
+                curPair.direction = 0; // unknown yet
+
+            } else if (curPair.srcStart >= 0 && (sp.distance > distThreshold))
+            {   /* Was tracking, stop tracking, because next node is too far away */
+                /* Record the source and replacement segments */
+                assert i > 0; // cannot be for the very first node
+                assert curPair.srcStart >=0;
+                assert curPair.dstStart >=0;
+                assert curPair.dstEnd >=0;
+                assert curPair.srcEnd >=0;
+                replPairs.add(new ReplacementPairs(curPair));
+//                    totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
+                curPair.reset();
+            } else if (curPair.srcStart >= 0 && sp.distance <= distThreshold) {
+                /* Continue tracking, record the last known end point */
+                // TODO record in which direction we started to circle
+                int deltaDstIndex = sp.dstIndex - curPair.dstEnd;
+                int newDirection = deltaDstIndex > 0 ? 1 : deltaDstIndex < 0? -1 :0;
+
+                if (curPair.direction != 0 && curPair.direction != newDirection) {
+                    /* This means that projection point jump to
+                     * another branch of dstWay */
+                    // TODO handled wrap around zero case: stop currently tracked
+                    // segment
+                }
+
+                curPair.srcEnd = i;
+                curPair.dstEnd = sp.dstIndex;
+                curPair.dstN = sp.projectionCoord;
+                curPair.direction = newDirection;
+
+
+            } /* Otherwise continue tracking outside of snapping threshold */
+        }
+
+        if (curPair.srcStart >= 0 ) { /* we are still tracking, close it at the last node */
+            replPairs.add(new ReplacementPairs(curPair));
+//                totalMovedNodes += curPair.srcEnd - curPair.srcStart + 1;
+        }
+        return replPairs;
     }
 
     /** Finds a point on line segment [b, c] that is closest to a.
