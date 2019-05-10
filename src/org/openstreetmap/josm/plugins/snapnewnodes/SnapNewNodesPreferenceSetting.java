@@ -50,7 +50,7 @@ public class SnapNewNodesPreferenceSetting extends DefaultTabPreferenceSetting {
     public void addGui(final PreferenceTabbedPane gui) {
         final JPanel tab = gui.createPreferenceTab(this);
 
-        distanceThreshold.setText(Config.getPref().get(DIST_THRESHOLD, "10"));
+        distanceThreshold.setText(Config.getPref().get(DIST_THRESHOLD, "20"));
         tab.add(new JLabel(tr("Distance Threshold (in meters)")), GBC.std());
         tab.add(distanceThreshold, GBC.eol().fill(GBC.HORIZONTAL).insets(5,0,0,5));
 
