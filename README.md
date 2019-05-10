@@ -5,7 +5,7 @@ Select exactly two ways, and the tool will glue sections of the first way to
 sections of the second way when distance between them is less than specified
 threshold (in meters).
 
-Be sure to read `BUGS` as this plugin certainly has many!
+Be sure to read `BUGS.md` as this plugin certainly has many!
 
 Example
 =========
