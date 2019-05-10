@@ -35,5 +35,5 @@ https://josm.openstreetmap.de/wiki/Help/Preferences/Plugins#Manualinstallation
 
 Author: Grigory Rechistov <grigory.rechistov@gmail.com>
 
-The plugin is inspired by `simplifyarea` by Martin Zdila <m.zdila@gmail.com>.
+This plugin is inspired by [simplifyarea](https://wiki.openstreetmap.org/wiki/JOSM/Plugins/SimplifyArea) by Martin Zdila <m.zdila@gmail.com>.
 
