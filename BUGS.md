@@ -17,17 +17,17 @@ Known bugs and limitations
   cases, do it manually instead.
 
 * Leftover duplicate nodes and unconnected nodes without tags may be present.
-  They are detected by the validator and can be automatically fixed later.
+  They are detected by the validator and can be automatically fixed by it.
 
 * AngleTreshold is not configurable through the Preferences dialog.
 
 * Deletion of zero angles and duplicate nodes is performed, but sometimes
-  fails to do so, or leaves dangling isolated nodes.
+  fails to do so, or leaves dangling isolated nodes. These issues are detected
+  by the validator. Orphan nodes can be automatically deleted. Zero-angled
+  segments are reported as self-intersections and should be fixed manually by
+  deleting, merging of moving nodes.
 
 * Deletion of zero angles at the first/last node position is not done.
-
-* Some nodes that are better left alone (e.g. with tags och connecting several
-  ways) are nevertheless moved.
 
 
 

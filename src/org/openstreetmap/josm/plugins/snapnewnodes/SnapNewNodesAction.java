@@ -356,17 +356,22 @@ public final class SnapNewNodesAction extends JosmAction {
 
         ReplacementPairs curPair = new ReplacementPairs();
 
+        /* A special descriptor to mark nodes that must not be moved */
+        final SnappingPlace fixedNodeStub =  new SnappingPlace(null,
+                                    Double.POSITIVE_INFINITY, -1);
+
         for (int i = 0; i < srcWaySize; i ++) {
             Node n = srcWay.getNode(i);
             SnappingPlace sp = null;
 
-            // TODO determine a list of checks that decide which nodes should be left alone
-//                if (n.getParentWays().contains(dstWay)) {
-//                    sp = new SnappingPlace(null,  Double.POSITIVE_INFINITY, -1); // mark the node as "unsnappable"
-//                } else {
-            sp = calculateNearestPointOnWay(n, dstWay);
-            assert sp.dstIndex >= 0;
-//                }
+            if (nodeGluesWays(n) || n.isTagged()) {
+                /* Nodes tying several ways or bearing tags should be kept
+                 * untouched */
+                sp = fixedNodeStub;
+            } else {
+                sp = calculateNearestPointOnWay(n, dstWay);
+                assert sp.dstIndex >= 0;
+            }
 
             if (curPair.srcStart < 0 && sp.distance <= distThreshold) {
                 /* not tracking before, start tracking now */
@@ -402,13 +407,10 @@ public final class SnapNewNodesAction extends JosmAction {
                     // TODO handled wrap around zero case: stop currently tracked
                     // segment
                 }
-
                 curPair.srcEnd = i;
                 curPair.dstEnd = sp.dstIndex;
                 curPair.dstN = sp.projectionCoord;
                 curPair.direction = newDirection;
-
-
             } /* Otherwise continue tracking outside of snapping threshold */
         }
 
@@ -491,22 +493,22 @@ public final class SnapNewNodesAction extends JosmAction {
     }
 
 
-//    private static boolean nodeGluesWays(final Node node) {
-//        Set<Node> referenceNeighbours = null;
-//        for (final OsmPrimitive ref : node.getReferrers()) {
-//            if (ref.getType() == OsmPrimitiveType.WAY) {
-//                final Way way = ((Way) ref);
-//                final Set<Node> neighbours = way.getNeighbours(node);
-//                if (referenceNeighbours == null) {
-//                    referenceNeighbours = neighbours;
-//                } else if (!referenceNeighbours.containsAll(neighbours)) {
-//                    return true;
-//                }
-//            }
-//        }
-//
-//        return false;
-//    }
+    private static boolean nodeGluesWays(final Node node) {
+        Set<Node> referenceNeighbours = null;
+        for (final OsmPrimitive ref : node.getReferrers()) {
+            if (ref.getType() == OsmPrimitiveType.WAY) {
+                final Way way = ((Way) ref);
+                final Set<Node> neighbours = way.getNeighbours(node);
+                if (referenceNeighbours == null) {
+                    referenceNeighbours = neighbours;
+                } else if (!referenceNeighbours.containsAll(neighbours)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     @Override
     protected void updateEnabledState() {
